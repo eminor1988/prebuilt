@@ -48,6 +48,13 @@ jobs:
           make -j$(nproc)
           sudo make install
 
+      - name: Get libatomic for musl
+        run: |
+          wget -q https://musl.cc/x86_64-linux-musl-cross.tgz
+          tar xzf x86_64-linux-musl-cross.tgz
+          sudo cp x86_64-linux-musl-cross/x86_64-linux-musl/lib/libatomic.a /usr/local/musl/lib/
+          rm -rf x86_64-linux-musl-cross x86_64-linux-musl-cross.tgz
+
       - name: Compute release tag
         id: meta
         run: |
@@ -85,7 +92,11 @@ jobs:
             -DCMAKE_CXX_COMPILER=clang++-23 \
             -DCMAKE_C_FLAGS="--target=x86_64-linux-musl -isystem /usr/local/musl/include" \
             -DCMAKE_CXX_FLAGS="--target=x86_64-linux-musl -isystem /usr/local/musl/include" \
-            -DCMAKE_EXE_LINKER_FLAGS="-L/usr/local/musl/lib" \
+            -DCMAKE_EXE_LINKER_FLAGS="-L/usr/local/musl/lib -latomic -fuse-ld=lld" \
+            -DCMAKE_AR=llvm-ar-23 \
+            -DCMAKE_RANLIB=llvm-ranlib-23 \
+            -DCMAKE_REQUIRED_FLAGS="--target=x86_64-linux-musl -isystem /usr/local/musl/include" \
+            -DCMAKE_REQUIRED_LINK_OPTIONS="-L/usr/local/musl/lib" \
             -DLLVM_ENABLE_PROJECTS="lld" \
             -DLLVM_TARGETS_TO_BUILD="X86" \
             -DLLVM_INCLUDE_EXAMPLES=OFF \
