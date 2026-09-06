@@ -1,4 +1,4 @@
-name: Build LLVM 23.1.1 macOS Clang 23.1.0
+name: Build LLVM 23.1.0 macOS Clang 23.1.0
 
 on:
   workflow_dispatch:
@@ -29,8 +29,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Ninja
-        run: brew install ninja
+      - name: Install Ninja and bootstrap LLVM
+        run: |
+          brew install ninja llvm
+          LLVM_PREFIX="$(brew --prefix llvm)"
+          echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
 
       - name: Compute release tag
         id: meta
@@ -44,9 +47,12 @@ jobs:
 
       - name: Build LLVM + LLD with libc++
         run: |
+          LLVM_PREFIX="$(brew --prefix llvm)"
           cmake -S llvm-project/llvm -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=install \
+            -DCMAKE_C_COMPILER="$LLVM_PREFIX/bin/clang" \
+            -DCMAKE_CXX_COMPILER="$LLVM_PREFIX/bin/clang++" \
             -DLLVM_ENABLE_PROJECTS="lld" \
             -DLLVM_TARGETS_TO_BUILD="AArch64" \
             -DLLVM_INCLUDE_EXAMPLES=OFF \
