@@ -54,6 +54,7 @@ jobs:
             --dir deps
           mkdir -p deps/llvm
           tar -xzf deps/llvm-*.tar.gz -C deps/llvm
+          ls deps/llvm/bin/clang* || true
 
       - name: Compute release tag
         id: meta
@@ -67,12 +68,18 @@ jobs:
 
       - name: Build WasmEdge
         run: |
+          LLVM_DIR=$(pwd)/$(find deps/llvm -name "LLVMConfig.cmake" -exec dirname {} \; | head -1 | sed 's|^./||')
+          echo "LLVM_DIR=$LLVM_DIR"
+          CLANG=$(pwd)/$(find deps/llvm -name "clang" -type f | head -1 | sed 's|^./||')
+          CLANGXX=$(pwd)/$(find deps/llvm -name "clang++" -type f | head -1 | sed 's|^./||')
+          echo "CLANG=$CLANG"
+          echo "CLANGXX=$CLANGXX"
           cmake -S WasmEdge -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=install \
-            -DCMAKE_C_COMPILER=clang-23 \
-            -DCMAKE_CXX_COMPILER=clang++-23 \
-            -DLLVM_DIR=$(find deps/llvm -name "LLVMConfig.cmake" -exec dirname {} \; | head -1) \
+            -DCMAKE_C_COMPILER="$CLANG" \
+            -DCMAKE_CXX_COMPILER="$CLANGXX" \
+            -DLLVM_DIR="$LLVM_DIR" \
             -DWASMEDGE_BUILD_STATIC_LIB=ON \
             -DWASMEDGE_BUILD_SHARED_LIB=OFF \
             -DWASMEDGE_LINK_LLVM_STATIC=ON \

@@ -65,7 +65,7 @@ jobs:
 
       - name: Build WasmEdge
         run: |
-          LLVM_DIR=$(find deps/llvm -name "LLVMConfig.cmake" -exec dirname {} \; | head -1)
+          LLVM_DIR=$(pwd)/$(find deps/llvm -name "LLVMConfig.cmake" -exec dirname {} \; | head -1 | sed 's|^./||')
           echo "LLVM_DIR=$LLVM_DIR"
           cmake -S WasmEdge -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \

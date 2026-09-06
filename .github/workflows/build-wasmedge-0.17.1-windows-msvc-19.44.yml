@@ -68,10 +68,12 @@ jobs:
 
       - name: Build WasmEdge
         run: |
+          $llvmDir = (Get-Item "deps\llvm\lib\cmake\llvm").FullName
+          Write-Host "LLVM_DIR=$llvmDir"
           cmake -S WasmEdge -B build -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_INSTALL_PREFIX=install `
-            -DLLVM_DIR=deps\llvm\lib\cmake\llvm `
+            -DLLVM_DIR="$llvmDir" `
             -DWASMEDGE_BUILD_STATIC_LIB=ON `
             -DWASMEDGE_BUILD_SHARED_LIB=OFF `
             -DWASMEDGE_LINK_LLVM_STATIC=ON `
