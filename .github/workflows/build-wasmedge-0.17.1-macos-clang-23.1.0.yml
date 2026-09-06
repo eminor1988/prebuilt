@@ -61,7 +61,7 @@ jobs:
 
       - name: Checkout WasmEdge
         run: |
-          git clone --depth 1 --branch v${{ env.WasmEdge_VERSION }} https://github.com/WasmEdge/WasmEdge.git
+          git clone --depth 1 --branch ${{ env.WasmEdge_VERSION }} https://github.com/WasmEdge/WasmEdge.git
 
       - name: Build WasmEdge
         run: |
