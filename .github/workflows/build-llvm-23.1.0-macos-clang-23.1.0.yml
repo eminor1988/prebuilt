@@ -34,6 +34,10 @@ jobs:
           brew install ninja llvm
           LLVM_PREFIX="$(brew --prefix llvm)"
           echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
+          sudo ln -sf "$LLVM_PREFIX/bin/ld64.lld" /usr/local/bin/lld
+          sudo ln -sf "$LLVM_PREFIX/bin/ld64.lld" /usr/local/bin/ld.lld
+          "$LLVM_PREFIX/bin/llvm-config" --version
+          which lld
 
       - name: Compute release tag
         id: meta
