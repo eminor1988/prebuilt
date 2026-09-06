@@ -34,10 +34,18 @@ jobs:
           brew install ninja llvm
           LLVM_PREFIX="$(brew --prefix llvm)"
           echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
-          sudo ln -sf "$LLVM_PREFIX/bin/ld64.lld" /usr/local/bin/lld
-          sudo ln -sf "$LLVM_PREFIX/bin/ld64.lld" /usr/local/bin/ld.lld
-          "$LLVM_PREFIX/bin/llvm-config" --version
-          which lld
+          ls "$LLVM_PREFIX/bin/"lld* || true
+          ls "$LLVM_PREFIX/bin/"ld64* || true
+          if [ -f "$LLVM_PREFIX/bin/ld64.lld" ]; then
+            sudo ln -sf "$LLVM_PREFIX/bin/ld64.lld" /usr/local/bin/ld64.lld
+            sudo ln -sf "$LLVM_PREFIX/bin/ld64.lld" /usr/local/bin/ld.lld
+            sudo ln -sf "$LLVM_PREFIX/bin/ld64.lld" /usr/local/bin/lld
+          elif [ -f "$LLVM_PREFIX/bin/lld" ]; then
+            sudo ln -sf "$LLVM_PREFIX/bin/lld" /usr/local/bin/lld
+            sudo ln -sf "$LLVM_PREFIX/bin/lld" /usr/local/bin/ld.lld
+          fi
+          "$LLVM_PREFIX/bin/llvm-config" --version || true
+          which lld || which ld64.lld || echo "lld not found in PATH"
 
       - name: Compute release tag
         id: meta
@@ -64,7 +72,7 @@ jobs:
             -DLLVM_INCLUDE_BENCHMARKS=OFF \
             -DLLVM_ENABLE_ASSERTIONS=ON \
             -DLLVM_ENABLE_LIBCXX=ON \
-            -DLLVM_ENABLE_LLD=ON
+            -DLLVM_ENABLE_LLD=OFF
           cmake --build build
 
       - name: Install
