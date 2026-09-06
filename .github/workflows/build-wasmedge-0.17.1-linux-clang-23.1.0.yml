@@ -1,4 +1,4 @@
-name: Build WasmEdge 0.17.1 Linux Clang (musl)
+name: Build WasmEdge 0.17.1 Linux Clang 23.1.0 (musl)
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ on:
   workflow_call:
     inputs:
       llvm_release_tag:
-        description: "LLVM prebuilt release tag (e.g., llvm-23.1.0-x86_64-linux-linux-clang-23.1.0-libcxx-lld)"
+        description: "LLVM prebuilt release tag"
         required: true
         type: string
     outputs:
@@ -31,23 +31,33 @@ env:
 
 jobs:
   build:
-    name: Build WasmEdge 0.17.1 (Linux x86_64 Clang musl)
+    name: Build WasmEdge 0.17.1 (Linux x86_64 Clang 23.1.0 musl)
     runs-on: ubuntu-24.04
-    container: alpine:3.20
     outputs:
       release_tag: ${{ steps.meta.outputs.release_tag }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Install dependencies
         run: |
-          apk add --no-cache clang lld libc-dev cmake ninja git curl bash
+          sudo apt-get update
+          sudo apt-get install -y ninja-build musl-tools musl-dev
+          wget -O /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh 23 all || true
+          sudo apt-get install -y clang-23 lld-23
 
       - name: Download prebuilt LLVM
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          LLVM_TAG="${{ inputs.llvm_release_tag }}"
-          curl -sL "https://github.com/${{ github.repository_owner }}/prebuilt/releases/download/${LLVM_TAG}/${LLVM_TAG}.tar.gz" -o llvm.tar.gz
+          gh release download "${{ inputs.llvm_release_tag }}" \
+            --repo ${{ github.repository_owner }}/prebuilt \
+            --pattern '*.tar.gz' \
+            --dir deps
           mkdir -p deps/llvm
-          tar -xzf llvm.tar.gz -C deps/llvm
-          ls deps/llvm/bin/clang* || true
+          tar -xzf deps/llvm-*.tar.gz -C deps/llvm
 
       - name: Compute release tag
         id: meta
@@ -66,8 +76,11 @@ jobs:
           cmake -S WasmEdge -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=install \
-            -DCMAKE_C_COMPILER=clang \
-            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_C_COMPILER=clang-23 \
+            -DCMAKE_CXX_COMPILER=clang++-23 \
+            -DCMAKE_C_FLAGS="--target=x86_64-linux-musl" \
+            -DCMAKE_CXX_FLAGS="--target=x86_64-linux-musl" \
+            -DCMAKE_EXE_LINKER_FLAGS="-L/usr/lib/x86_64-linux-musl" \
             -DCMAKE_PREFIX_PATH=$(pwd)/deps/llvm \
             -DLLVM_DIR="$LLVM_DIR" \
             -DLLD_DIR="$LLVM_DIR" \

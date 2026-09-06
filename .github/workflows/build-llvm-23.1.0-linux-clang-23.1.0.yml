@@ -1,4 +1,4 @@
-name: Build LLVM 23.1.0 Linux Clang (musl)
+name: Build LLVM 23.1.0 Linux Clang 23.1.0 (musl)
 
 on:
   workflow_dispatch:
@@ -21,15 +21,23 @@ env:
 
 jobs:
   build:
-    name: Build LLVM 23.1.0 (Linux x86_64 Clang musl)
+    name: Build LLVM 23.1.0 (Linux x86_64 Clang 23.1.0 musl)
     runs-on: ubuntu-24.04
-    container: alpine:3.20
     outputs:
       release_tag: ${{ steps.meta.outputs.release_tag }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Install dependencies
         run: |
-          apk add --no-cache clang lld libc-dev cmake ninja git python3
+          sudo apt-get update
+          sudo apt-get install -y ninja-build python3 git wget lsb-release gnupg software-properties-common musl-tools musl-dev
+          wget -O /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh 23 all || true
+          sudo apt-get install -y clang-23 lld-23
+          clang++-23 --version
 
       - name: Compute release tag
         id: meta
@@ -41,12 +49,17 @@ jobs:
         run: |
           git clone --depth 1 --branch llvmorg-${{ env.LLVM_VERSION }} https://github.com/llvm/llvm-project.git
 
-      - name: Build zstd (static)
+      - name: Build zstd (static, musl)
         run: |
           git clone --depth 1 --branch v1.5.7 https://github.com/facebook/zstd.git
           cmake -S zstd/build/cmake -B zstd-build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=install \
+            -DCMAKE_C_COMPILER=clang-23 \
+            -DCMAKE_CXX_COMPILER=clang++-23 \
+            -DCMAKE_C_FLAGS="--target=x86_64-linux-musl" \
+            -DCMAKE_CXX_FLAGS="--target=x86_64-linux-musl" \
+            -DCMAKE_EXE_LINKER_FLAGS="-L/usr/lib/x86_64-linux-musl" \
             -DZSTD_BUILD_STATIC=ON \
             -DZSTD_BUILD_SHARED=OFF \
             -DZSTD_BUILD_PROGRAMS=OFF \
@@ -54,13 +67,16 @@ jobs:
           cmake --build zstd-build
           cmake --install zstd-build
 
-      - name: Build LLVM + LLD with libc++
+      - name: Build LLVM + LLD with libc++ (musl)
         run: |
           cmake -S llvm-project/llvm -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=install \
-            -DCMAKE_C_COMPILER=clang \
-            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_C_COMPILER=clang-23 \
+            -DCMAKE_CXX_COMPILER=clang++-23 \
+            -DCMAKE_C_FLAGS="--target=x86_64-linux-musl" \
+            -DCMAKE_CXX_FLAGS="--target=x86_64-linux-musl" \
+            -DCMAKE_EXE_LINKER_FLAGS="-L/usr/lib/x86_64-linux-musl" \
             -DLLVM_ENABLE_PROJECTS="lld" \
             -DLLVM_TARGETS_TO_BUILD="X86" \
             -DLLVM_INCLUDE_EXAMPLES=OFF \
