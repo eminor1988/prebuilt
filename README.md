@@ -34,7 +34,7 @@ build-{package}-{version}-{platform}-{compiler}-{compiler_version}.yml
 |----------|----------|-------------|
 | `build-llvm-23.1.0-windows-msvc-19.44.yml` | Windows x86_64 | `llvm-23.1.0-x86_64-pc-windows-msvc-19.44-mt-lld` |
 | `build-llvm-23.1.0-linux-clang-23.1.0.yml` | Linux x86_64 | `llvm-23.1.0-x86_64-linux-linux-clang-23.1.0-libcxx-lld` |
-| `build-llvm-23.1.1-macos-clang-23.1.0.yml` | macOS aarch64 | `llvm-23.1.1-aarch64-apple-macos-clang-23.1.0-libcxx-lld` |
+| `build-llvm-23.1.0-macos-clang-23.1.0.yml` | macOS aarch64 | `llvm-23.1.0-aarch64-apple-macos-clang-23.1.0-libcxx-lld` |
 | `build-llvm-23.1.0-emscripten-3.1.64.yml` | Emscripten wasm32 | `llvm-23.1.0-wasm32-unknown-emscripten-emscripten-3.1.64-libcxx-lld` |
 | `build-wasmedge-0.17.1-windows-msvc-19.44.yml` | Windows x86_64 | `wasmedge-0.17.1-x86_64-pc-windows-msvc-19.44-mt-lld` |
 | `build-wasmedge-0.17.1-linux-clang-23.1.0.yml` | Linux x86_64 | `wasmedge-0.17.1-x86_64-linux-linux-clang-23.1.0-libcxx-lld` |
