@@ -1,6 +1,6 @@
 # Prebuilt Dependencies
 
-Static prebuilt libraries for [regulux](https://github.com/eminor1988/regulux). All builds are fully static with zero C/C++ runtime DLL dependencies.
+Static prebuilt libraries. All builds are fully static with zero C/C++ runtime DLL dependencies.
 
 ## Naming Convention
 
