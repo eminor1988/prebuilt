@@ -43,10 +43,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Emscripten SDK
-        uses: mymindstorm/setup-emsdk@v14
-        with:
-          version: ${{ inputs.emscripten_version }}
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build python3 git
 
       - name: Compute release tag
         id: meta
@@ -60,7 +60,7 @@ jobs:
 
       - name: Build LLVM
         run: |
-          emcmake cmake -S llvm-project/llvm -B build \
+          cmake -S llvm-project/llvm -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=install \
             -DLLVM_ENABLE_PROJECTS="lld" \

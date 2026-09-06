@@ -32,7 +32,12 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build python3 git
+          sudo apt-get install -y ninja-build python3 git wget lsb-release gnupg software-properties-common
+          wget -O /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh 23 all || true
+          sudo apt-get install -y clang-23 lld-23
+          clang++-23 --version
 
       - name: Compute release tag
         id: meta
