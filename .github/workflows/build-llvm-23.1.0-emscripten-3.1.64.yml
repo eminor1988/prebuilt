@@ -1,0 +1,94 @@
+name: Build LLVM 23.1.0 Emscripten 3.1.64
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      llvm_version:
+        description: "LLVM version to build (e.g., 23.1.0)"
+        required: false
+        default: "23.1.0"
+      emscripten_version:
+        description: "Emscripten version (e.g., 3.1.64)"
+        required: false
+        default: "3.1.64"
+    outputs:
+      release_tag:
+        description: "Release tag for the built artifacts"
+        value: ${{ jobs.build-llvm-emscripten.outputs.release_tag }}
+
+permissions:
+  contents: write
+
+jobs:
+  build-llvm-emscripten:
+    name: Build LLVM ${{ inputs.llvm_version }} (Emscripten ${{ inputs.emscripten_version }})
+    runs-on: ubuntu-24.04
+    outputs:
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Emscripten SDK
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: ${{ inputs.emscripten_version }}
+
+      - name: Compute release tag
+        id: meta
+        run: |
+          TAG="llvm-${{ inputs.llvm_version }}-wasm32-unknown-emscripten-emscripten-${{ inputs.emscripten_version }}-libcxx-lld"
+          echo "release_tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Checkout LLVM source
+        run: |
+          git clone --depth 1 --branch llvmorg-${{ inputs.llvm_version }}.0 https://github.com/llvm/llvm-project.git
+
+      - name: Build LLVM
+        run: |
+          emcmake cmake -S llvm-project/llvm -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=install \
+            -DLLVM_ENABLE_PROJECTS="lld" \
+            -DLLVM_TARGETS_TO_BUILD="WebAssembly" \
+            -DLLVM_INCLUDE_EXAMPLES=OFF \
+            -DLLVM_INCLUDE_TESTS=OFF \
+            -DLLVM_INCLUDE_BENCHMARKS=OFF \
+            -DLLVM_ENABLE_ASSERTIONS=ON \
+            -DLLVM_BUILD_TOOLS=OFF \
+            -DLLVM_BUILD_UTILS=OFF
+          cmake --build build
+
+      - name: Install
+        run: |
+          cmake --install build
+
+      - name: Package
+        run: |
+          tar -czf llvm-${{ inputs.llvm_version }}-wasm32-unknown-emscripten-emscripten-${{ inputs.emscripten_version }}-libcxx-lld.tar.gz -C install .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: llvm-emscripten
+          path: llvm-*.tar.gz
+
+  release:
+    name: Publish Release
+    needs: build-llvm-emscripten
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: llvm-emscripten
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build-llvm-emscripten.outputs.release_tag }}
+          name: "LLVM ${{ inputs.llvm_version }} (Emscripten ${{ inputs.emscripten_version }})"
+          files: llvm-*.tar.gz
+          draft: false
+          prerelease: false

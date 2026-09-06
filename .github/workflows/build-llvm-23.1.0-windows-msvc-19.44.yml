@@ -1,0 +1,91 @@
+name: Build LLVM 23.1.0 Windows MSVC 19.44
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    outputs:
+      release_tag:
+        description: "Release tag for the built artifacts"
+        value: ${{ jobs.build.outputs.release_tag }}
+
+permissions:
+  contents: write
+
+env:
+  LLVM_VERSION: "23.1.0"
+  TARGET_TRIPLE: x86_64-pc-windows-msvc
+  COMPILER: msvc
+  COMPILER_VERSION: "19.44"
+  STDLIB: mt
+  LLD: lld
+
+jobs:
+  build:
+    name: Build LLVM 23.1.0 (Windows x86_64 MSVC 19.44 /MT)
+    runs-on: windows-2025
+    outputs:
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Setup Ninja
+        uses: ashutoshvarma/setup-ninja@v1.1
+
+      - name: Compute release tag
+        id: meta
+        shell: pwsh
+        run: |
+          $tag = "llvm-${{ env.LLVM_VERSION }}-${{ env.TARGET_TRIPLE }}-${{ env.COMPILER }}-${{ env.COMPILER_VERSION }}-${{ env.STDLIB }}-${{ env.LLD }}"
+          echo "release_tag=$tag" >> $env:GITHUB_OUTPUT
+
+      - name: Checkout LLVM source
+        run: |
+          git clone --depth 1 --branch llvmorg-${{ env.LLVM_VERSION }}.0 https://github.com/llvm/llvm-project.git
+
+      - name: Build LLVM + LLD
+        run: |
+          cmake -S llvm-project/llvm -B build -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_INSTALL_PREFIX=install `
+            -DLLVM_ENABLE_PROJECTS="lld" `
+            -DLLVM_TARGETS_TO_BUILD="X86" `
+            -DLLVM_INCLUDE_EXAMPLES=OFF `
+            -DLLVM_INCLUDE_TESTS=OFF `
+            -DLLVM_INCLUDE_BENCHMARKS=OFF `
+            -DLLVM_ENABLE_ASSERTIONS=ON `
+            -DLLVM_USE_CRT=MT
+          cmake --build build
+
+      - name: Install
+        run: |
+          cmake --install build
+          Compress-Archive -Path install\* -DestinationPath llvm-${{ env.LLVM_VERSION }}-${{ env.TARGET_TRIPLE }}-${{ env.COMPILER }}-${{ env.COMPILER_VERSION }}-${{ env.STDLIB }}-${{ env.LLD }}.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: llvm-windows
+          path: llvm-*.zip
+
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: llvm-windows
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build.outputs.release_tag }}
+          name: "LLVM ${{ env.LLVM_VERSION }} (${{ env.TARGET_TRIPLE }}, ${{ env.COMPILER }} ${{ env.COMPILER_VERSION }}, ${{ env.STDLIB }})"
+          files: llvm-*.zip
+          draft: false
+          prerelease: false

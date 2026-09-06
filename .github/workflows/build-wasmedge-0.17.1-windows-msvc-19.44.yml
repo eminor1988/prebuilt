@@ -1,0 +1,105 @@
+name: Build WasmEdge 0.17.1 Windows MSVC 19.44
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      llvm_release_tag:
+        description: "LLVM prebuilt release tag (e.g., llvm-23.1.0-x86_64-pc-windows-msvc-19.44-mt-lld)"
+        required: true
+        type: string
+    outputs:
+      release_tag:
+        description: "Release tag for the built artifacts"
+        value: ${{ jobs.build.outputs.release_tag }}
+
+permissions:
+  contents: write
+
+env:
+  WasmEdge_VERSION: "0.17.1"
+  TARGET_TRIPLE: x86_64-pc-windows-msvc
+  COMPILER: msvc
+  COMPILER_VERSION: "19.44"
+  STDLIB: mt
+  LLD: lld
+
+jobs:
+  build:
+    name: Build WasmEdge 0.17.1 (Windows x86_64 MSVC 19.44 /MT)
+    runs-on: windows-2025
+    outputs:
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Setup Ninja
+        uses: ashutoshvarma/setup-ninja@v1.1
+
+      - name: Download prebuilt LLVM
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "${{ inputs.llvm_release_tag }}" `
+            --repo ${{ github.repository_owner }}/prebuilt `
+            --pattern '*.zip' `
+            --dir deps
+          Expand-Archive -Path deps\llvm-*.zip -DestinationPath deps\llvm
+
+      - name: Compute release tag
+        id: meta
+        shell: pwsh
+        run: |
+          $tag = "wasmedge-${{ env.WasmEdge_VERSION }}-${{ env.TARGET_TRIPLE }}-${{ env.COMPILER }}-${{ env.COMPILER_VERSION }}-${{ env.STDLIB }}-${{ env.LLD }}"
+          echo "release_tag=$tag" >> $env:GITHUB_OUTPUT
+
+      - name: Checkout WasmEdge
+        run: |
+          git clone --depth 1 --branch v${{ env.WasmEdge_VERSION }} https://github.com/WasmEdge/WasmEdge.git
+
+      - name: Build WasmEdge
+        run: |
+          cmake -S WasmEdge -B build -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_INSTALL_PREFIX=install `
+            -DLLVM_DIR=deps\llvm\lib\cmake\llvm `
+            -DWASMEDGE_BUILD_STATIC_LIB=ON `
+            -DWASMEDGE_BUILD_SHARED_LIB=OFF `
+            -DWASMEDGE_LINK_LLVM_STATIC=ON `
+            -DWASMEDGE_BUILD_TOOLS=OFF `
+            -DWASMEDGE_BUILD_TESTS=OFF
+          cmake --build build
+
+      - name: Install
+        run: |
+          cmake --install build
+          Compress-Archive -Path install\* -DestinationPath wasmedge-${{ env.WasmEdge_VERSION }}-${{ env.TARGET_TRIPLE }}-${{ env.COMPILER }}-${{ env.COMPILER_VERSION }}-${{ env.STDLIB }}-${{ env.LLD }}.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasmedge-windows
+          path: wasmedge-*.zip
+
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: wasmedge-windows
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build.outputs.release_tag }}
+          name: "WasmEdge ${{ env.WasmEdge_VERSION }} (${{ env.TARGET_TRIPLE }}, ${{ env.COMPILER }} ${{ env.COMPILER_VERSION }}, ${{ env.STDLIB }})"
+          files: wasmedge-*.zip
+          draft: false
+          prerelease: false

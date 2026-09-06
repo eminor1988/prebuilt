@@ -1,0 +1,104 @@
+name: Build WasmEdge 0.17.1 macOS Clang 23.1.0
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      llvm_release_tag:
+        description: "LLVM prebuilt release tag (e.g., llvm-23.1.1-aarch64-apple-macos-clang-23.1.0-libcxx-lld)"
+        required: true
+        type: string
+    outputs:
+      release_tag:
+        description: "Release tag for the built artifacts"
+        value: ${{ jobs.build.outputs.release_tag }}
+
+permissions:
+  contents: write
+
+env:
+  WasmEdge_VERSION: "0.17.1"
+  TARGET_TRIPLE: aarch64-apple-macos
+  COMPILER: clang
+  COMPILER_VERSION: "23.1.0"
+  STDLIB: libcxx
+  LLD: lld
+
+jobs:
+  build:
+    name: Build WasmEdge 0.17.1 (macOS aarch64)
+    runs-on: macos-15
+    outputs:
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Ninja
+        run: brew install ninja
+
+      - name: Download prebuilt LLVM
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "${{ inputs.llvm_release_tag }}" \
+            --repo ${{ github.repository_owner }}/prebuilt \
+            --pattern '*.tar.gz' \
+            --dir deps
+          mkdir -p deps/llvm
+          tar -xzf deps/llvm-*.tar.gz -C deps/llvm
+
+      - name: Compute release tag
+        id: meta
+        run: |
+          TAG="wasmedge-${{ env.WasmEdge_VERSION }}-${{ env.TARGET_TRIPLE }}-${{ env.COMPILER }}-${{ env.COMPILER_VERSION }}-${{ env.STDLIB }}-${{ env.LLD }}"
+          echo "release_tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Checkout WasmEdge
+        run: |
+          git clone --depth 1 --branch v${{ env.WasmEdge_VERSION }} https://github.com/WasmEdge/WasmEdge.git
+
+      - name: Build WasmEdge
+        run: |
+          LLVM_DIR=$(find deps/llvm -name "LLVMConfig.cmake" -exec dirname {} \; | head -1)
+          echo "LLVM_DIR=$LLVM_DIR"
+          cmake -S WasmEdge -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=install \
+            -DLLVM_DIR="$LLVM_DIR" \
+            -DWASMEDGE_BUILD_STATIC_LIB=ON \
+            -DWASMEDGE_BUILD_SHARED_LIB=OFF \
+            -DWASMEDGE_LINK_LLVM_STATIC=ON \
+            -DWASMEDGE_BUILD_TOOLS=OFF \
+            -DWASMEDGE_BUILD_TESTS=OFF
+          cmake --build build
+
+      - name: Install
+        run: |
+          cmake --install build
+          tar -czf wasmedge-${{ env.WasmEdge_VERSION }}-${{ env.TARGET_TRIPLE }}-${{ env.COMPILER }}-${{ env.COMPILER_VERSION }}-${{ env.STDLIB }}-${{ env.LLD }}.tar.gz -C install .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasmedge-macos
+          path: wasmedge-*.tar.gz
+
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: wasmedge-macos
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build.outputs.release_tag }}
+          name: "WasmEdge ${{ env.WasmEdge_VERSION }} (${{ env.TARGET_TRIPLE }}, ${{ env.COMPILER }} ${{ env.COMPILER_VERSION }}, ${{ env.STDLIB }})"
+          files: wasmedge-*.tar.gz
+          draft: false
+          prerelease: false

@@ -1,0 +1,92 @@
+name: Build LLVM 23.1.0 Linux Clang 23.1.0
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    outputs:
+      release_tag:
+        description: "Release tag for the built artifacts"
+        value: ${{ jobs.build.outputs.release_tag }}
+
+permissions:
+  contents: write
+
+env:
+  LLVM_VERSION: "23.1.0"
+  TARGET_TRIPLE: x86_64-linux-linux
+  COMPILER: clang
+  COMPILER_VERSION: "23.1.0"
+  STDLIB: libcxx
+  LLD: lld
+
+jobs:
+  build:
+    name: Build LLVM 23.1.0 (Linux x86_64 Clang 23.1.0)
+    runs-on: ubuntu-24.04
+    outputs:
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build python3 git
+
+      - name: Compute release tag
+        id: meta
+        run: |
+          TAG="llvm-${{ env.LLVM_VERSION }}-${{ env.TARGET_TRIPLE }}-${{ env.COMPILER }}-${{ env.COMPILER_VERSION }}-${{ env.STDLIB }}-${{ env.LLD }}"
+          echo "release_tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Checkout LLVM source
+        run: |
+          git clone --depth 1 --branch llvmorg-${{ env.LLVM_VERSION }}.0 https://github.com/llvm/llvm-project.git
+
+      - name: Build LLVM + LLD with libc++
+        run: |
+          cmake -S llvm-project/llvm -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=install \
+            -DCMAKE_C_COMPILER=clang-23 \
+            -DCMAKE_CXX_COMPILER=clang++-23 \
+            -DLLVM_ENABLE_PROJECTS="lld" \
+            -DLLVM_TARGETS_TO_BUILD="X86" \
+            -DLLVM_INCLUDE_EXAMPLES=OFF \
+            -DLLVM_INCLUDE_TESTS=OFF \
+            -DLLVM_INCLUDE_BENCHMARKS=OFF \
+            -DLLVM_ENABLE_ASSERTIONS=ON \
+            -DLLVM_ENABLE_LIBCXX=ON \
+            -DLLVM_ENABLE_LLD=ON
+          cmake --build build
+
+      - name: Install
+        run: |
+          cmake --install build
+          tar -czf llvm-${{ env.LLVM_VERSION }}-${{ env.TARGET_TRIPLE }}-${{ env.COMPILER }}-${{ env.COMPILER_VERSION }}-${{ env.STDLIB }}-${{ env.LLD }}.tar.gz -C install .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: llvm-linux
+          path: llvm-*.tar.gz
+
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: llvm-linux
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build.outputs.release_tag }}
+          name: "LLVM ${{ env.LLVM_VERSION }} (${{ env.TARGET_TRIPLE }}, ${{ env.COMPILER }} ${{ env.COMPILER_VERSION }}, ${{ env.STDLIB }})"
+          files: llvm-*.tar.gz
+          draft: false
+          prerelease: false
