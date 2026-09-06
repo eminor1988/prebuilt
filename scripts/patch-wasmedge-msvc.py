@@ -304,7 +304,7 @@ def patch_helper_cmake(src_dir):
       get_filename_component(ZSTD_PATH "${zstd_LIBRARY}" DIRECTORY)
       if(MSVC)
         list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS
-          ${ZSTD_PATH}/zstd.lib
+          ${zstd_LIBRARY}
         )
       else()
         list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS
