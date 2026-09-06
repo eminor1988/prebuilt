@@ -51,6 +51,10 @@ jobs:
       - name: Get libatomic for musl
         run: |
           sudo cp /usr/lib/gcc/x86_64-linux-gnu/14/libatomic.a /usr/local/musl/lib/
+          sudo cp /usr/lib/llvm-23/lib/libc++.a /usr/local/musl/lib/
+          sudo cp /usr/lib/llvm-23/lib/libc++abi.a /usr/local/musl/lib/
+          sudo mkdir -p /usr/local/musl/include/c++
+          sudo ln -s /usr/lib/llvm-23/include/c++/v1 /usr/local/musl/include/c++/v1
 
       - name: Compute release tag
         id: meta
