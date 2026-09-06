@@ -66,49 +66,10 @@ jobs:
         run: |
           git clone --depth 1 --branch ${{ env.WasmEdge_VERSION }} https://github.com/WasmEdge/WasmEdge.git
 
-      - name: Patch WasmEdge cmake for Windows
+      - name: Patch WasmEdge cmake for MSVC static lib
         shell: pwsh
         run: |
-          # Fix 1: lib/api/CMakeLists.txt - sanitize :: in directory names
-          $file = "WasmEdge\lib\api\CMakeLists.txt"
-          $content = Get-Content $file -Raw
-          $old = 'function(wasmedge_add_static_lib_component_command target)'
-          $new = 'function(wasmedge_add_static_lib_component_command target)' + "`n" + '  string(REGEX REPLACE ":" "_" safe_target "${target}")'
-          $content = $content.Replace($old, $new)
-          $content = $content.Replace('objs/${target}', 'objs/${safe_target}')
-          Set-Content $file $content -NoNewline
-          Write-Host "Patched $file"
-
-          # Fix 2: cmake/Helper.cmake - comprehensive MSVC static lib fixes
-          $file2 = "WasmEdge\cmake\Helper.cmake"
-          $h = Get-Content $file2 -Raw
-          # Replace hardcoded .a filenames with .lib
-          $h = $h.Replace('liblldELF.a', 'lldELF.lib')
-          $h = $h.Replace('liblldCommon.a', 'lldCommon.lib')
-          $h = $h.Replace('liblldCore.a', 'lldCore.lib')
-          $h = $h.Replace('liblldDriver.a', 'lldDriver.lib')
-          $h = $h.Replace('liblldReaderWriter.a', 'lldReaderWriter.lib')
-          $h = $h.Replace('liblldYAML.a', 'lldYAML.lib')
-          $h = $h.Replace('liblldMinGW.a', 'lldMinGW.lib')
-          $h = $h.Replace('liblldCOFF.a', 'lldCOFF.lib')
-          $h = $h.Replace('liblldMachO.a', 'lldMachO.lib')
-          $h = $h.Replace('liblldWasm.a', 'lldWasm.lib')
-          # On MSVC, use find_package(zstd) found path instead of hardcoded libzstd.a
-          $h = $h.Replace(
-            '${ZSTD_PATH}/libzstd.a',
-            '${zstd_LIBRARY}')
-          # Fix llvm-config output: on MSVC --libs --link-static returns full paths
-          # Use --libnames which returns just filenames, then prepend LLVM_LIBRARY_DIR
-          $h = $h.Replace(
-            'llvm-config --libs --link-static',
-            'llvm-config --libnames')
-          # --libnames returns filenames like "LLVMCore.lib" (MSVC) or "libLLVMCore.a" (Unix)
-          # So just prepend directory without adding prefix/suffix
-          $h = $h.Replace(
-            '${LLVM_LIBRARY_DIR}/lib${LIB_NAME}.a',
-            '${LLVM_LIBRARY_DIR}/${LIB_NAME}')
-          Set-Content $file2 $h -NoNewline
-          Write-Host "Patched $file2"
+          .\scripts\patch-wasmedge-msvc.ps1 -SourceDir "WasmEdge"
 
       - name: Build WasmEdge
         run: |
