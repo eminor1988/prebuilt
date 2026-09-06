@@ -1,4 +1,4 @@
-name: Build LLVM 23.1.0 Linux Clang 23.1.0
+name: Build LLVM 23.1.0 Linux Clang (musl)
 
 on:
   workflow_dispatch:
@@ -21,23 +21,15 @@ env:
 
 jobs:
   build:
-    name: Build LLVM 23.1.0 (Linux x86_64 Clang 23.1.0)
+    name: Build LLVM 23.1.0 (Linux x86_64 Clang musl)
     runs-on: ubuntu-24.04
+    container: alpine:3.20
     outputs:
       release_tag: ${{ steps.meta.outputs.release_tag }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ninja-build python3 git wget lsb-release gnupg software-properties-common
-          wget -O /tmp/llvm.sh https://apt.llvm.org/llvm.sh
-          chmod +x /tmp/llvm.sh
-          sudo /tmp/llvm.sh 23 all || true
-          sudo apt-get install -y clang-23 lld-23
-          clang++-23 --version
+          apk add --no-cache clang lld libc-dev cmake ninja git python3
 
       - name: Compute release tag
         id: meta
@@ -55,7 +47,6 @@ jobs:
           cmake -S zstd/build/cmake -B zstd-build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=install \
-            -DCMAKE_C_COMPILER=clang-23 \
             -DZSTD_BUILD_STATIC=ON \
             -DZSTD_BUILD_SHARED=OFF \
             -DZSTD_BUILD_PROGRAMS=OFF \
@@ -68,8 +59,8 @@ jobs:
           cmake -S llvm-project/llvm -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=install \
-            -DCMAKE_C_COMPILER=clang-23 \
-            -DCMAKE_CXX_COMPILER=clang++-23 \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
             -DLLVM_ENABLE_PROJECTS="lld" \
             -DLLVM_TARGETS_TO_BUILD="X86" \
             -DLLVM_INCLUDE_EXAMPLES=OFF \
@@ -105,7 +96,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.build.outputs.release_tag }}
-          name: "LLVM ${{ env.LLVM_VERSION }} (${{ env.TARGET_TRIPLE }}, ${{ env.COMPILER }} ${{ env.COMPILER_VERSION }}, ${{ env.STDLIB }})"
+          name: "LLVM ${{ env.LLVM_VERSION }} (${{ env.TARGET_TRIPLE }}, ${{ env.COMPILER }} ${{ env.COMPILER_VERSION }}, musl)"
           files: llvm-*.tar.gz
           draft: false
           prerelease: false

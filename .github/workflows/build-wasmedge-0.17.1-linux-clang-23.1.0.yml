@@ -1,4 +1,4 @@
-name: Build WasmEdge 0.17.1 Linux Clang 23.1.0
+name: Build WasmEdge 0.17.1 Linux Clang (musl)
 
 on:
   workflow_dispatch:
@@ -31,34 +31,22 @@ env:
 
 jobs:
   build:
-    name: Build WasmEdge 0.17.1 (Linux x86_64 Clang 23.1.0)
+    name: Build WasmEdge 0.17.1 (Linux x86_64 Clang musl)
     runs-on: ubuntu-24.04
+    container: alpine:3.20
     outputs:
       release_tag: ${{ steps.meta.outputs.release_tag }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ninja-build python3 git wget lsb-release gnupg software-properties-common
-          wget -O /tmp/llvm.sh https://apt.llvm.org/llvm.sh
-          chmod +x /tmp/llvm.sh
-          sudo /tmp/llvm.sh 23 all || true
-          sudo apt-get install -y clang-23 lld-23
-          clang++-23 --version
+          apk add --no-cache clang lld libc-dev cmake ninja git curl bash
 
       - name: Download prebuilt LLVM
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release download "${{ inputs.llvm_release_tag }}" \
-            --repo ${{ github.repository_owner }}/prebuilt \
-            --pattern '*.tar.gz' \
-            --dir deps
+          LLVM_TAG="${{ inputs.llvm_release_tag }}"
+          curl -sL "https://github.com/${{ github.repository_owner }}/prebuilt/releases/download/${LLVM_TAG}/${LLVM_TAG}.tar.gz" -o llvm.tar.gz
           mkdir -p deps/llvm
-          tar -xzf deps/llvm-*.tar.gz -C deps/llvm
+          tar -xzf llvm.tar.gz -C deps/llvm
           ls deps/llvm/bin/clang* || true
 
       - name: Compute release tag
@@ -78,8 +66,8 @@ jobs:
           cmake -S WasmEdge -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=install \
-            -DCMAKE_C_COMPILER=clang-23 \
-            -DCMAKE_CXX_COMPILER=clang++-23 \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
             -DCMAKE_PREFIX_PATH=$(pwd)/deps/llvm \
             -DLLVM_DIR="$LLVM_DIR" \
             -DLLD_DIR="$LLVM_DIR" \
@@ -115,7 +103,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.build.outputs.release_tag }}
-          name: "WasmEdge ${{ env.WasmEdge_VERSION }} (${{ env.TARGET_TRIPLE }}, ${{ env.COMPILER }} ${{ env.COMPILER_VERSION }}, ${{ env.STDLIB }})"
+          name: "WasmEdge ${{ env.WasmEdge_VERSION }} (${{ env.TARGET_TRIPLE }}, ${{ env.COMPILER }} ${{ env.COMPILER_VERSION }}, musl)"
           files: wasmedge-*.tar.gz
           draft: false
           prerelease: false
