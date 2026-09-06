@@ -32,7 +32,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build python3 git wget lsb-release gnupg software-properties-common libatomic-1-dev
+          sudo apt-get install -y ninja-build python3 git wget lsb-release gnupg software-properties-common libgcc-14-dev
           wget -O /tmp/llvm.sh https://apt.llvm.org/llvm.sh
           chmod +x /tmp/llvm.sh
           sudo /tmp/llvm.sh 23 all || true
@@ -50,7 +50,7 @@ jobs:
 
       - name: Get libatomic for musl
         run: |
-          sudo cp /usr/lib/x86_64-linux-gnu/libatomic.a /usr/local/musl/lib/
+          sudo cp /usr/lib/gcc/x86_64-linux-gnu/14/libatomic.a /usr/local/musl/lib/
 
       - name: Compute release tag
         id: meta
