@@ -32,11 +32,11 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build python3 git wget lsb-release gnupg software-properties-common
+          sudo apt-get install -y ninja-build python3 git wget lsb-release gnupg software-properties-common libatomic-1-dev
           wget -O /tmp/llvm.sh https://apt.llvm.org/llvm.sh
           chmod +x /tmp/llvm.sh
           sudo /tmp/llvm.sh 23 all || true
-          sudo apt-get install -y clang-23 lld-23
+          sudo apt-get install -y clang-23 lld-23 libc++-23-dev libc++abi-23-dev
           clang++-23 --version
 
       - name: Build musl 1.2.5 from source
@@ -50,10 +50,7 @@ jobs:
 
       - name: Get libatomic for musl
         run: |
-          wget -q https://musl.cc/x86_64-linux-musl-cross.tgz
-          tar xzf x86_64-linux-musl-cross.tgz
-          sudo cp x86_64-linux-musl-cross/x86_64-linux-musl/lib/libatomic.a /usr/local/musl/lib/
-          rm -rf x86_64-linux-musl-cross x86_64-linux-musl-cross.tgz
+          sudo cp /usr/lib/x86_64-linux-gnu/libatomic.a /usr/local/musl/lib/
 
       - name: Compute release tag
         id: meta
