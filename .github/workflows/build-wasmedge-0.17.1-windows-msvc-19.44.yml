@@ -66,6 +66,21 @@ jobs:
         run: |
           git clone --depth 1 --branch ${{ env.WasmEdge_VERSION }} https://github.com/WasmEdge/WasmEdge.git
 
+      - name: Patch WasmEdge cmake for Windows (fix :: in directory names)
+        shell: pwsh
+        run: |
+          # WasmEdge bug: uses target names like fmt::fmt as directory names.
+          # Windows disallows ':' in paths. Sanitize by replacing :: with _.
+          $file = "WasmEdge\lib\api\CMakeLists.txt"
+          $content = Get-Content $file -Raw
+          # Add sanitization at the top of the function
+          $content = $content -replace '(function\(wasmedge_add_static_lib_component_command target\))',
+            "`$1`n  string(REGEX REPLACE :: _ safe_target `${target})"
+          # Replace objs/${target} with objs/${safe_target} in the function body
+          $content = $content -replace 'objs/\$\{target\}', 'objs/${safe_target}'
+          Set-Content $file $content -NoNewline
+          Write-Host "Patched $file"
+
       - name: Build WasmEdge
         run: |
           $llvmDir = (Get-Item "deps\llvm\lib\cmake\llvm").FullName
