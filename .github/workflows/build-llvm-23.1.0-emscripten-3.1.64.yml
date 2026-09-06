@@ -2,16 +2,29 @@ name: Build LLVM 23.1.0 Emscripten 3.1.64
 
 on:
   workflow_dispatch:
+    inputs:
+      llvm_version:
+        description: "LLVM version to build"
+        required: false
+        default: "23.1.0"
+        type: string
+      emscripten_version:
+        description: "Emscripten version"
+        required: false
+        default: "3.1.64"
+        type: string
   workflow_call:
     inputs:
       llvm_version:
-        description: "LLVM version to build (e.g., 23.1.0)"
+        description: "LLVM version to build"
         required: false
         default: "23.1.0"
+        type: string
       emscripten_version:
-        description: "Emscripten version (e.g., 3.1.64)"
+        description: "Emscripten version"
         required: false
         default: "3.1.64"
+        type: string
     outputs:
       release_tag:
         description: "Release tag for the built artifacts"
