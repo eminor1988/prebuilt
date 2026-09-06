@@ -29,23 +29,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Ninja and bootstrap LLVM
-        run: |
-          brew install ninja llvm
-          LLVM_PREFIX="$(brew --prefix llvm)"
-          echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
-          ls "$LLVM_PREFIX/bin/"lld* || true
-          ls "$LLVM_PREFIX/bin/"ld64* || true
-          if [ -f "$LLVM_PREFIX/bin/ld64.lld" ]; then
-            sudo ln -sf "$LLVM_PREFIX/bin/ld64.lld" /usr/local/bin/ld64.lld
-            sudo ln -sf "$LLVM_PREFIX/bin/ld64.lld" /usr/local/bin/ld.lld
-            sudo ln -sf "$LLVM_PREFIX/bin/ld64.lld" /usr/local/bin/lld
-          elif [ -f "$LLVM_PREFIX/bin/lld" ]; then
-            sudo ln -sf "$LLVM_PREFIX/bin/lld" /usr/local/bin/lld
-            sudo ln -sf "$LLVM_PREFIX/bin/lld" /usr/local/bin/ld.lld
-          fi
-          "$LLVM_PREFIX/bin/llvm-config" --version || true
-          which lld || which ld64.lld || echo "lld not found in PATH"
+      - name: Install Ninja
+        run: brew install ninja
 
       - name: Compute release tag
         id: meta
@@ -59,12 +44,9 @@ jobs:
 
       - name: Build LLVM + LLD with libc++
         run: |
-          LLVM_PREFIX="$(brew --prefix llvm)"
           cmake -S llvm-project/llvm -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=install \
-            -DCMAKE_C_COMPILER="$LLVM_PREFIX/bin/clang" \
-            -DCMAKE_CXX_COMPILER="$LLVM_PREFIX/bin/clang++" \
             -DLLVM_ENABLE_PROJECTS="lld" \
             -DLLVM_TARGETS_TO_BUILD="AArch64" \
             -DLLVM_INCLUDE_EXAMPLES=OFF \
