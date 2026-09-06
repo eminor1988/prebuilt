@@ -18,7 +18,7 @@ permissions:
 
 env:
   WasmEdge_VERSION: "0.17.1"
-  TARGET_TRIPLE: x86_64-pc-windows-msvc
+  TARGET_TRIPLE: x86_64-pc-windows
   COMPILER: msvc
   COMPILER_VERSION: "19.44"
   STDLIB: mt

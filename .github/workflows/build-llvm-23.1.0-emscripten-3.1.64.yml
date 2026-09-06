@@ -56,7 +56,7 @@ jobs:
 
       - name: Checkout LLVM source
         run: |
-          git clone --depth 1 --branch llvmorg-${{ inputs.llvm_version }}.0 https://github.com/llvm/llvm-project.git
+          git clone --depth 1 --branch llvmorg-${{ inputs.llvm_version }} https://github.com/llvm/llvm-project.git
 
       - name: Build LLVM
         run: |

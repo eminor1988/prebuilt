@@ -13,7 +13,7 @@ permissions:
 
 env:
   LLVM_VERSION: "23.1.0"
-  TARGET_TRIPLE: x86_64-pc-windows-msvc
+  TARGET_TRIPLE: x86_64-pc-windows
   COMPILER: msvc
   COMPILER_VERSION: "19.44"
   STDLIB: mt
@@ -44,7 +44,7 @@ jobs:
 
       - name: Checkout LLVM source
         run: |
-          git clone --depth 1 --branch llvmorg-${{ env.LLVM_VERSION }}.0 https://github.com/llvm/llvm-project.git
+          git clone --depth 1 --branch llvmorg-${{ env.LLVM_VERSION }} https://github.com/llvm/llvm-project.git
 
       - name: Build LLVM + LLD
         run: |

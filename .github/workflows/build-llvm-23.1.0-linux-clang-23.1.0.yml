@@ -42,7 +42,7 @@ jobs:
 
       - name: Checkout LLVM source
         run: |
-          git clone --depth 1 --branch llvmorg-${{ env.LLVM_VERSION }}.0 https://github.com/llvm/llvm-project.git
+          git clone --depth 1 --branch llvmorg-${{ env.LLVM_VERSION }} https://github.com/llvm/llvm-project.git
 
       - name: Build LLVM + LLD with libc++
         run: |
