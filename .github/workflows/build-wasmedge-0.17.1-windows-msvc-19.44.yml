@@ -93,7 +93,10 @@ jobs:
           $h = $h.Replace('liblldCOFF.a', 'lldCOFF.lib')
           $h = $h.Replace('liblldMachO.a', 'lldMachO.lib')
           $h = $h.Replace('liblldWasm.a', 'lldWasm.lib')
-          $h = $h.Replace('libzstd.a', 'zstd.lib')
+          # On MSVC, use find_package(zstd) found path instead of hardcoded libzstd.a
+          $h = $h.Replace(
+            '${ZSTD_PATH}/libzstd.a',
+            '${zstd_LIBRARY}')
           # Fix llvm-config output: on MSVC --libs --link-static returns full paths
           # Use --libnames which returns just filenames, then prepend LLVM_LIBRARY_DIR
           $h = $h.Replace(
