@@ -79,10 +79,10 @@ jobs:
           Set-Content $file $content -NoNewline
           Write-Host "Patched $file"
 
-          # Fix 2: cmake/Helper.cmake - replace hardcoded .a paths with .lib for MSVC
+          # Fix 2: cmake/Helper.cmake - comprehensive MSVC static lib fixes
           $file2 = "WasmEdge\cmake\Helper.cmake"
           $h = Get-Content $file2 -Raw
-          # Replace lib*.a with *.lib for lld libraries
+          # Replace hardcoded .a filenames with .lib
           $h = $h.Replace('liblldELF.a', 'lldELF.lib')
           $h = $h.Replace('liblldCommon.a', 'lldCommon.lib')
           $h = $h.Replace('liblldCore.a', 'lldCore.lib')
@@ -94,8 +94,16 @@ jobs:
           $h = $h.Replace('liblldMachO.a', 'lldMachO.lib')
           $h = $h.Replace('liblldWasm.a', 'lldWasm.lib')
           $h = $h.Replace('libzstd.a', 'zstd.lib')
-          # Replace generic ${LLVM_LIBRARY_DIR}/lib${LIB_NAME}.a pattern
-          $h = $h.Replace('${LLVM_LIBRARY_DIR}/lib${LIB_NAME}.a', '${LLVM_LIBRARY_DIR}/${LIB_NAME}.lib')
+          # Fix llvm-config output: on MSVC --libs --link-static returns full paths
+          # Use --libnames which returns just filenames, then prepend LLVM_LIBRARY_DIR
+          $h = $h.Replace(
+            'llvm-config --libs --link-static',
+            'llvm-config --libnames')
+          # --libnames returns filenames like "LLVMCore.lib" (MSVC) or "libLLVMCore.a" (Unix)
+          # So just prepend directory without adding prefix/suffix
+          $h = $h.Replace(
+            '${LLVM_LIBRARY_DIR}/lib${LIB_NAME}.a',
+            '${LLVM_LIBRARY_DIR}/${LIB_NAME}')
           Set-Content $file2 $h -NoNewline
           Write-Host "Patched $file2"
 
