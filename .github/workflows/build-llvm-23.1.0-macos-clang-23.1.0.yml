@@ -42,6 +42,19 @@ jobs:
         run: |
           git clone --depth 1 --branch llvmorg-${{ env.LLVM_VERSION }} https://github.com/llvm/llvm-project.git
 
+      - name: Build zstd (static)
+        run: |
+          git clone --depth 1 --branch v1.5.7 https://github.com/facebook/zstd.git
+          cmake -S zstd/build/cmake -B zstd-build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=install \
+            -DZSTD_BUILD_STATIC=ON \
+            -DZSTD_BUILD_SHARED=OFF \
+            -DZSTD_BUILD_PROGRAMS=OFF \
+            -DZSTD_BUILD_TESTS=OFF
+          cmake --build zstd-build
+          cmake --install zstd-build
+
       - name: Build LLVM + LLD with libc++
         run: |
           cmake -S llvm-project/llvm -B build -G Ninja \
