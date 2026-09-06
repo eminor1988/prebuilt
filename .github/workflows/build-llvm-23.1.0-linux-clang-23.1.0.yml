@@ -32,12 +32,21 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build python3 git wget lsb-release gnupg software-properties-common musl-tools musl-dev
+          sudo apt-get install -y ninja-build python3 git wget lsb-release gnupg software-properties-common
           wget -O /tmp/llvm.sh https://apt.llvm.org/llvm.sh
           chmod +x /tmp/llvm.sh
           sudo /tmp/llvm.sh 23 all || true
           sudo apt-get install -y clang-23 lld-23
           clang++-23 --version
+
+      - name: Build musl 1.2.5 from source
+        run: |
+          wget https://musl.libc.org/releases/musl-1.2.5.tar.gz
+          tar xzf musl-1.2.5.tar.gz
+          cd musl-1.2.5
+          ./configure --prefix=/usr/local/musl
+          make -j$(nproc)
+          make install
 
       - name: Compute release tag
         id: meta
@@ -57,9 +66,9 @@ jobs:
             -DCMAKE_INSTALL_PREFIX=install \
             -DCMAKE_C_COMPILER=clang-23 \
             -DCMAKE_CXX_COMPILER=clang++-23 \
-            -DCMAKE_C_FLAGS="--target=x86_64-linux-musl" \
-            -DCMAKE_CXX_FLAGS="--target=x86_64-linux-musl" \
-            -DCMAKE_EXE_LINKER_FLAGS="-L/usr/lib/x86_64-linux-musl" \
+            -DCMAKE_C_FLAGS="--target=x86_64-linux-musl -isystem /usr/local/musl/include" \
+            -DCMAKE_CXX_FLAGS="--target=x86_64-linux-musl -isystem /usr/local/musl/include" \
+            -DCMAKE_EXE_LINKER_FLAGS="-L/usr/local/musl/lib" \
             -DZSTD_BUILD_STATIC=ON \
             -DZSTD_BUILD_SHARED=OFF \
             -DZSTD_BUILD_PROGRAMS=OFF \
@@ -74,9 +83,9 @@ jobs:
             -DCMAKE_INSTALL_PREFIX=install \
             -DCMAKE_C_COMPILER=clang-23 \
             -DCMAKE_CXX_COMPILER=clang++-23 \
-            -DCMAKE_C_FLAGS="--target=x86_64-linux-musl" \
-            -DCMAKE_CXX_FLAGS="--target=x86_64-linux-musl" \
-            -DCMAKE_EXE_LINKER_FLAGS="-L/usr/lib/x86_64-linux-musl" \
+            -DCMAKE_C_FLAGS="--target=x86_64-linux-musl -isystem /usr/local/musl/include" \
+            -DCMAKE_CXX_FLAGS="--target=x86_64-linux-musl -isystem /usr/local/musl/include" \
+            -DCMAKE_EXE_LINKER_FLAGS="-L/usr/local/musl/lib" \
             -DLLVM_ENABLE_PROJECTS="lld" \
             -DLLVM_TARGETS_TO_BUILD="X86" \
             -DLLVM_INCLUDE_EXAMPLES=OFF \
