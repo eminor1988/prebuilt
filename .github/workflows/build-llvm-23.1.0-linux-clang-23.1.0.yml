@@ -46,7 +46,7 @@ jobs:
           cd musl-1.2.5
           ./configure --prefix=/usr/local/musl
           make -j$(nproc)
-          make install
+          sudo make install
 
       - name: Compute release tag
         id: meta
