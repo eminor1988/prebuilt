@@ -2,6 +2,11 @@ name: Build WasmEdge 0.17.1 Windows MSVC 19.44
 
 on:
   workflow_dispatch:
+    inputs:
+      llvm_release_tag:
+        description: "LLVM prebuilt release tag"
+        required: true
+        type: string
   workflow_call:
     inputs:
       llvm_release_tag:
