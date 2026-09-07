@@ -96,9 +96,9 @@ jobs:
             -DWASMEDGE_BUILD_TOOLS=OFF \
             -DWASMEDGE_BUILD_TESTS=OFF \
             -Dzstd_INCLUDE_DIR=/usr/include \
-            -Dzstd_LIBRARY=/usr/lib/x86_64-linux-gnu/libzstd.so \
+            -Dzstd_LIBRARY=/usr/lib/x86_64-linux-gnu/libzstd.a \
             -DZLIB_INCLUDE_DIR=/usr/include \
-            -DZLIB_LIBRARY=/usr/lib/x86_64-linux-gnu/libz.so
+            -DZLIB_LIBRARY=/usr/lib/x86_64-linux-gnu/libz.a
           cmake --build /tmp/wasmedge/build
           cmake --install /tmp/wasmedge/build
           rm -rf /tmp/wasmedge
