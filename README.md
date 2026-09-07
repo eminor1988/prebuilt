@@ -100,8 +100,29 @@ WasmEdge workflows depend on prebuilt LLVM via `workflow_call` with `llvm_releas
 
 ## License
 
-All prebuilt libraries use permissive licenses:
-- LLVM: Apache 2.0 with LLVM Exception
-- WasmEdge: Apache 2.0
-- Vulkan-Loader: Apache 2.0
-- libuv: MIT
+All prebuilt libraries use permissive licenses. **Static linking does NOT cause GPL contamination.** Your application can be closed-source and commercial.
+
+| Library | License | Commercial Use |
+|---------|---------|----------------|
+| LLVM (libc++, compiler-rt, LLD) | Apache 2.0 with [LLVM Exception](https://llvm.org/docs/DeveloperPolicy.html#legacy) | ✅ |
+| WasmEdge | Apache 2.0 | ✅ |
+| Vulkan-Loader | Apache 2.0 | ✅ |
+| libuv | MIT | ✅ |
+
+### Why static linking is safe
+
+LLVM uses the [Apache License 2.0 with LLVM Exception](https://llvm.org/devlicensing.html). The **LLVM Exception** explicitly grants a patent license and removes the GPL linking exception concern — even when statically linking LLVM's runtime libraries (libc++, compiler-rt) into your application, **you are NOT required to open-source your code**.
+
+> **Reference**: [GNU GPL](https://www.gnu.org/licenses/gpl-3.0.html) — The GPL license itself. LLVM's exception clause ensures that linking against LLVM runtime libraries does not trigger GPL copyleft requirements.
+
+### Runtime component breakdown
+
+| Component | License | GPL Risk |
+|-----------|---------|----------|
+| libc++ | Apache 2.0 + LLVM Exception | None |
+| compiler-rt | Apache 2.0 + LLVM Exception | None |
+| LLD | Apache 2.0 + LLVM Exception | None |
+| MinGW-w64 CRT | Public Domain / BSD | None |
+| libuv | MIT | None |
+| WasmEdge | Apache 2.0 | None |
+| Vulkan-Loader | Apache 2.0 | None |
