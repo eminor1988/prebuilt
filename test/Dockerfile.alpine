@@ -6,6 +6,8 @@ RUN apk add --no-cache \
     ninja \
     clang22 \
     lld22 \
+    libc++-dev \
+    libc++-static \
     git \
     bash
 

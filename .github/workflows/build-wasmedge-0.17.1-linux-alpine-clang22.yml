@@ -67,6 +67,7 @@ jobs:
             -DCMAKE_INSTALL_PREFIX=/tmp/wasmedge-install \
             -DCMAKE_C_COMPILER=clang-22 \
             -DCMAKE_CXX_COMPILER=clang++-22 \
+            -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
             -DCMAKE_PREFIX_PATH=/deps/llvm \
             -DLLVM_DIR="$LLVM_DIR" \
             -DWASMEDGE_BUILD_STATIC_LIB=ON \
@@ -89,7 +90,7 @@ jobs:
               return 0;
           }
           EOF
-          clang-22 -fuse-ld=lld -static \
+          clang-22 -stdlib=libc++ -fuse-ld=lld -static \
             -I/tmp/wasmedge-install/include \
             /tmp/test_link.c \
             -L/tmp/wasmedge-install/lib \

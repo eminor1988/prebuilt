@@ -43,6 +43,7 @@ cmake -B "${ARTIFACT_DIR}/build/wasmedge" -S "$SCRIPT_DIR" \
     -G Ninja \
     -DCMAKE_C_COMPILER=clang-22 \
     -DCMAKE_CXX_COMPILER=clang++-22 \
+    -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
     -DCMAKE_LINKER=lld \
     -DCMAKE_BUILD_TYPE=Release \
     -DWASMEDGE_DIR="$PREFIX"
