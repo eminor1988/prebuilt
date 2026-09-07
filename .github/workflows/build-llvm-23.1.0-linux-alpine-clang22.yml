@@ -73,8 +73,7 @@ jobs:
             -DLLVM_INCLUDE_BENCHMARKS=OFF \
             -DLLVM_ENABLE_ASSERTIONS=ON \
             -DLLVM_ENABLE_LLD=ON \
-            -DLLVM_ENABLE_LIBCXX=ON \
-            -DCMAKE_CXX_FLAGS="-stdlib=libc++ -fuse-ld=lld"
+            -DCMAKE_CXX_FLAGS="-stdlib=libc++"
           cmake --build /tmp/llvm/build
           cmake --install /tmp/llvm/build
           rm -rf /tmp/llvm
