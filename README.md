@@ -100,20 +100,23 @@ WasmEdge workflows depend on prebuilt LLVM via `workflow_call` with `llvm_releas
 
 ## License
 
-All prebuilt libraries use permissive licenses. **Static linking does NOT cause GPL contamination.** Your application can be closed-source and commercial.
+Static linking does NOT cause GPL contamination. Your application can be closed-source and commercial.
+
+> **Note**: Although this project uses MinGW for Windows cross-compilation, we use **llvm-mingw** (LLVM toolchain), NOT GCC. LLVM's runtime libraries (libc++, compiler-rt) use Apache 2.0 with LLVM Exception, which explicitly permits static linking without GPL copyleft requirements. MinGW-w64 CRT uses ZPL-2.1 (permissive), NOT GPL.
 
 | Library | License | Commercial Use |
 |---------|---------|----------------|
-| LLVM (libc++, compiler-rt, LLD) | Apache 2.0 with [LLVM Exception](https://llvm.org/docs/DeveloperPolicy.html#legacy) | ✅ |
+| LLVM (libc++, compiler-rt, LLD) | Apache 2.0 with [LLVM Exception](https://llvm.org/LICENSE.txt) | ✅ |
+| MinGW-w64 CRT | [ZPL-2.1](https://github.com/mingw-w64/mingw-w64/blob/master/COPYING) (permissive) | ✅ |
 | WasmEdge | Apache 2.0 | ✅ |
 | Vulkan-Loader | Apache 2.0 | ✅ |
 | libuv | MIT | ✅ |
 
-### Why static linking is safe
+### LLVM Exception
 
-LLVM uses the [Apache License 2.0 with LLVM Exception](https://llvm.org/devlicensing.html). The **LLVM Exception** is an additional clause added by the LLVM project to the Apache 2.0 license — it explicitly grants a patent license and clarifies that linking against LLVM runtime libraries (libc++, compiler-rt) does **not** trigger GPL copyleft requirements. Your application remains closed-source compatible.
+The LLVM Exception is an additional clause added by the LLVM project to the Apache 2.0 license — it explicitly addresses GPL compatibility concerns when linking LLVM runtime libraries.
 
-> **Reference**: [GNU GPL](https://www.gnu.org/licenses/gpl-3.0.html) — The GPL license itself. The LLVM Exception clause (not part of GPL) specifically addresses GPL concerns when linking LLVM libraries.
+> **Reference**: [GNU GPL](https://www.gnu.org/licenses/gpl-3.0.html) — A copyleft license that requires derivative works to also be open-sourced. The LLVM Exception (not part of GPL) specifically addresses this concern.
 
 ### Runtime component breakdown
 
@@ -122,7 +125,7 @@ LLVM uses the [Apache License 2.0 with LLVM Exception](https://llvm.org/devlicen
 | libc++ | Apache 2.0 + LLVM Exception | None |
 | compiler-rt | Apache 2.0 + LLVM Exception | None |
 | LLD | Apache 2.0 + LLVM Exception | None |
-| MinGW-w64 CRT | Public Domain / BSD | None |
+| MinGW-w64 CRT | ZPL-2.1 | None |
 | libuv | MIT | None |
 | WasmEdge | Apache 2.0 | None |
 | Vulkan-Loader | Apache 2.0 | None |
