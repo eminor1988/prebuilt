@@ -8,6 +8,7 @@ RUN apk add --no-cache \
     lld22 \
     libc++-dev \
     libc++-static \
+    libunwind-dev \
     git \
     bash
 
