@@ -31,7 +31,7 @@ jobs:
       - name: Install dependencies
         run: |
           apk add --no-cache \
-            build-base cmake ninja python3 git wget \
+            build-base cmake ninja python3 git wget pkgconf \
             clang22 lld22
 
       - name: Clone Vulkan-Headers
