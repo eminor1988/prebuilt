@@ -80,13 +80,30 @@ WasmEdge workflows depend on prebuilt LLVM via `workflow_call` with `llvm_releas
 
 ## Scripts
 
-| Script | Description |
-|--------|-------------|
-| `scripts/{workflow_name}.py` | Helper scripts, named to match their corresponding workflow |
+| Directory | Description |
+|-----------|-------------|
+| `scripts/{environment}/` | Environment-specific scripts and patches |
+
+### Directory Structure
+
+```
+scripts/
+├── {environment}/
+│   ├── {package}-{version}.script.py   # Helper scripts
+│   └── patch/                           # Source code patches
+│       └── {package}-{version}.patch
+```
+
+### Examples
+- `scripts/linux-alpine-clang22/libuv-1.49.2.script.py`
+- `scripts/windows-mingw-llvm23/vulkan-loader-1.4.362.script.py`
+- `scripts/windows-msvc-19.44/wasmedge-0.17.1.script.py`
+- `scripts/windows-mingw-llvm23/patch/wasmedge-0.17.1.patch`
 
 ### Rules
 - Scripts **must** be written in **Python 3** (no Bash, PowerShell, or other languages)
-- Script filename must match the workflow it belongs to: `build-{package}-{version}-{platform}-{compiler}-{compiler_version}.py`
+- Scripts are organized by environment: `{os}-{compiler}-{compiler_version}`
+- Patch files use standard `.patch` format (unified diff)
 
 ## Runner Versions
 

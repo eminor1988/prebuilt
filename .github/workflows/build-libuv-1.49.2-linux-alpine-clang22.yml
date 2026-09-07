@@ -40,7 +40,7 @@ jobs:
 
       - name: Apply patches
         run: |
-          python3 prebuilt/scripts/build-libuv-1.49.2-linux-alpine-clang22.py /tmp/libuv
+          python3 prebuilt/scripts/linux-alpine-clang22/libuv-1.49.2.script.py /tmp/libuv
 
       - name: Compute release tag
         id: meta

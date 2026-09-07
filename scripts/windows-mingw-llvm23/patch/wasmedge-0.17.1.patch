@@ -1,0 +1,29 @@
+diff --git a/include/host/wasi/inode.h b/include/host/wasi/inode.h
+index 15bad33..21967dd 100644
+--- a/include/host/wasi/inode.h
++++ b/include/host/wasi/inode.h
+@@ -213,20 +213,16 @@ template <typename T> class FindHolderBase {
+ private:
+   struct Proxy : T {
+     static void doReset(T &Base) noexcept {
+-      const auto Ptr = &T::doReset;
+-      return (Base.*Ptr)();
++      return Base.doReset();
+     }
+     static WasiExpect<void> doRewind(T &Base, bool First) noexcept {
+-      const auto Ptr = &T::doRewind;
+-      return (Base.*Ptr)(First);
++      return Base.doRewind(First);
+     }
+     static bool doNext(T &Base) noexcept {
+-      const auto Ptr = &T::doNext;
+-      return (Base.*Ptr)();
++      return Base.doNext();
+     }
+     static WasiExpect<void> doLoadDirent(T &Base) noexcept {
+-      const auto Ptr = &T::doLoadDirent;
+-      return (Base.*Ptr)();
++      return Base.doLoadDirent();
+     }
+   };
+ 

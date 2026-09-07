@@ -59,7 +59,7 @@ jobs:
 
       - name: Apply patches
         run: |
-          python3 prebuilt/scripts/build-libuv-1.49.2-windows-mingw-llvm23.py /tmp/libuv
+          python3 prebuilt/scripts/windows-mingw-llvm23/libuv-1.49.2.script.py /tmp/libuv
 
       - name: Compute release tag
         id: meta

@@ -69,7 +69,7 @@ jobs:
       - name: Patch WasmEdge cmake for MSVC static lib
         shell: pwsh
         run: |
-          python scripts/build-wasmedge-0.17.1-windows-msvc-19.44.py WasmEdge
+          python scripts/windows-msvc-19.44/wasmedge-0.17.1.script.py WasmEdge
 
       - name: Build WasmEdge
         run: |
