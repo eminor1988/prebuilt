@@ -1,0 +1,128 @@
+name: Build Vulkan-Loader 1.4.362 Windows MinGW llvm-mingw 23.1.0
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  VULKAN_HEADERS_VERSION: "v1.4.362"
+  VULKAN_LOADER_VERSION: "v1.4.362"
+  TARGET_TRIPLE: x86_64-w64-windows-gnu
+  COMPILER: mingw
+  COMPILER_VERSION: "23.1.0"
+  STDLIB: static
+  LLD: lld
+
+jobs:
+  build:
+    name: Build Vulkan-Loader 1.4.362 (Windows x86_64 MinGW llvm-mingw 23.1.0)
+    runs-on: ubuntu-latest
+    container: mstorsjo/llvm-mingw:20260826
+    outputs:
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+    steps:
+      - name: Checkout prebuilt repo
+        uses: actions/checkout@v4
+        with:
+          path: prebuilt
+
+      - name: Install dependencies
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends \
+            cmake ninja-build python3 git wget ca-certificates
+
+      - name: MinGW toolchain file
+        run: |
+          cat > /tmp/mingw-toolchain.cmake <<'EOF'
+          set(CMAKE_SYSTEM_NAME Windows)
+          set(CMAKE_SYSTEM_PROCESSOR x86_64)
+          set(CMAKE_C_COMPILER x86_64-w64-mingw32-clang)
+          set(CMAKE_CXX_COMPILER x86_64-w64-mingw32-clang++)
+          set(CMAKE_RC_COMPILER x86_64-w64-mingw32-windres)
+          set(CMAKE_AR x86_64-w64-mingw32-llvm-ar)
+          set(CMAKE_RANLIB x86_64-w64-mingw32-llvm-ranlib)
+          set(CMAKE_NM x86_64-w64-mingw32-llvm-nm)
+          set(CMAKE_STRIP x86_64-w64-mingw32-llvm-strip)
+          set(CMAKE_SYSROOT /opt/llvm-mingw/x86_64-w64-mingw32)
+          set(CMAKE_FIND_ROOT_PATH /opt/llvm-mingw/x86_64-w64-mingw32)
+          set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+          set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+          set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+          set(CMAKE_EXE_LINKER_FLAGS_INIT "-fuse-ld=lld")
+          EOF
+
+      - name: Clone Vulkan-Headers
+        run: |
+          git clone --depth 1 --branch ${{ env.VULKAN_HEADERS_VERSION }} \
+            https://github.com/KhronosGroup/Vulkan-Headers.git /tmp/vulkan-headers
+
+      - name: Install Vulkan-Headers
+        run: |
+          cmake -S /tmp/vulkan-headers -B /tmp/vulkan-headers/build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=/tmp/mingw-toolchain.cmake \
+            -DCMAKE_INSTALL_PREFIX=/tmp/vulkan-install
+          cmake --build /tmp/vulkan-headers/build
+          cmake --install /tmp/vulkan-headers/build
+          rm -rf /tmp/vulkan-headers
+
+      - name: Clone Vulkan-Loader
+        run: |
+          git clone --depth 1 --branch ${{ env.VULKAN_LOADER_VERSION }} \
+            https://github.com/KhronosGroup/Vulkan-Loader.git /tmp/vulkan-loader
+
+      - name: Apply MinGW patches
+        run: |
+          python3 prebuilt/scripts/build-vulkan-loader-1.4.362-windows-mingw-llvm23.py /tmp/vulkan-loader
+
+      - name: Compute release tag
+        id: meta
+        run: |
+          TAG="vulkan-loader-${{ env.VULKAN_LOADER_VERSION }}-${{ env.TARGET_TRIPLE }}-${{ env.COMPILER }}-${{ env.COMPILER_VERSION }}-${{ env.STDLIB }}-${{ env.LLD }}"
+          echo "release_tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Build Vulkan-Loader
+        run: |
+          cmake -S /tmp/vulkan-loader -B /tmp/vulkan-loader/build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=/tmp/mingw-toolchain.cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/tmp/vulkan-loader-install \
+            -DCMAKE_PREFIX_PATH=/tmp/vulkan-install \
+            -DMINGW=TRUE \
+            -DBUILD_STATIC_LOADER=ON \
+            -DBUILD_TESTS=OFF
+          cmake --build /tmp/vulkan-loader/build
+          mkdir -p /tmp/vulkan-loader-install/lib
+          cp /tmp/vulkan-loader/build/loader/libvulkan.a /tmp/vulkan-loader-install/lib/
+          rm -rf /tmp/vulkan-loader
+
+      - name: Package
+        run: |
+          cd /tmp/vulkan-loader-install
+          tar -czf /tmp/vulkan-loader-${{ env.VULKAN_LOADER_VERSION }}-${{ env.TARGET_TRIPLE }}-${{ env.COMPILER }}-${{ env.COMPILER_VERSION }}-${{ env.STDLIB }}-${{ env.LLD }}.tar.gz .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vulkan-loader-windows-mingw
+          path: /tmp/vulkan-loader-*.tar.gz
+
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: vulkan-loader-windows-mingw
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build.outputs.release_tag }}
+          name: "Vulkan-Loader ${{ env.VULKAN_LOADER_VERSION }} (${{ env.TARGET_TRIPLE }}, ${{ env.COMPILER }} ${{ env.COMPILER_VERSION }})"
+          files: vulkan-loader-*.tar.gz
+          draft: false
+          prerelease: false
