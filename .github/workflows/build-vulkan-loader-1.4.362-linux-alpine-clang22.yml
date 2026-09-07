@@ -32,7 +32,7 @@ jobs:
         run: |
           apk add --no-cache \
             build-base cmake ninja python3 git wget pkgconf \
-            clang22 lld22 libxcb-dev
+            clang22 lld22 libxcb-dev libx11-dev
 
       - name: Clone Vulkan-Headers
         run: |
