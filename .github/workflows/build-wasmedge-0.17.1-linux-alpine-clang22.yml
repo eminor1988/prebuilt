@@ -46,11 +46,11 @@ jobs:
       - name: Download prebuilt LLVM
         run: |
           mkdir -p /deps/llvm
-          RELEASE_JSON=$(wget -qO- "https://api.github.com/repos/${{ github.repository_owner }}/prebuilt/releases/tags/${{ inputs.llvm_release_tag }}")
-          ASSET_URL=$(echo "$RELEASE_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin); print([a['browser_download_url'] for a in r['assets'] if a['name'].endswith('.tar.gz')][0])")
-          wget -q "$ASSET_URL" -O /tmp/llvm.tar.gz
+          wget -q "https://github.com/${{ github.repository_owner }}/prebuilt/releases/download/${{ inputs.llvm_release_tag }}/${{ inputs.llvm_release_tag }}.tar.gz" \
+            -O /tmp/llvm.tar.gz
           tar -xzf /tmp/llvm.tar.gz -C /deps/llvm
           rm /tmp/llvm.tar.gz
+
       - name: Compute release tag
         id: meta
         run: |
