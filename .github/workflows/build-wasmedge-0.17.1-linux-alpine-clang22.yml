@@ -41,7 +41,7 @@ jobs:
         run: |
           apk add --no-cache \
             build-base cmake ninja python3 git wget linux-headers \
-            clang22 lld22 libc++-dev libc++ zstd-dev
+            clang22 lld22 libc++-dev libc++ zstd-dev zlib-dev
 
       - name: Download prebuilt LLVM
         run: |

@@ -40,7 +40,7 @@ jobs:
       - name: Install dependencies
         run: |
           apt-get update && apt-get install -y --no-install-recommends \
-            cmake ninja-build python3 git wget ca-certificates libzstd-dev
+            cmake ninja-build python3 git wget ca-certificates libzstd-dev zlib1g-dev
 
       - name: MinGW toolchain file
         run: |
@@ -88,7 +88,11 @@ jobs:
             -DWASMEDGE_BUILD_SHARED_LIB=OFF \
             -DWASMEDGE_LINK_LLVM_STATIC=ON \
             -DWASMEDGE_BUILD_TOOLS=OFF \
-            -DWASMEDGE_BUILD_TESTS=OFF
+            -DWASMEDGE_BUILD_TESTS=OFF \
+            -Dzstd_INCLUDE_DIR=/usr/include \
+            -Dzstd_LIBRARY=/usr/lib/x86_64-linux-gnu/libzstd.so \
+            -DZLIB_INCLUDE_DIR=/usr/include \
+            -DZLIB_LIBRARY=/usr/lib/x86_64-linux-gnu/libz.so
           cmake --build /tmp/wasmedge/build
           cmake --install /tmp/wasmedge/build
           rm -rf /tmp/wasmedge
