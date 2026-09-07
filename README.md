@@ -111,9 +111,9 @@ All prebuilt libraries use permissive licenses. **Static linking does NOT cause 
 
 ### Why static linking is safe
 
-LLVM uses the [Apache License 2.0 with LLVM Exception](https://llvm.org/devlicensing.html). The **LLVM Exception** explicitly grants a patent license and removes the GPL linking exception concern — even when statically linking LLVM's runtime libraries (libc++, compiler-rt) into your application, **you are NOT required to open-source your code**.
+LLVM uses the [Apache License 2.0 with LLVM Exception](https://llvm.org/devlicensing.html). The **LLVM Exception** is an additional clause added by the LLVM project to the Apache 2.0 license — it explicitly grants a patent license and clarifies that linking against LLVM runtime libraries (libc++, compiler-rt) does **not** trigger GPL copyleft requirements. Your application remains closed-source compatible.
 
-> **Reference**: [GNU GPL](https://www.gnu.org/licenses/gpl-3.0.html) — The GPL license itself. LLVM's exception clause ensures that linking against LLVM runtime libraries does not trigger GPL copyleft requirements.
+> **Reference**: [GNU GPL](https://www.gnu.org/licenses/gpl-3.0.html) — The GPL license itself. The LLVM Exception clause (not part of GPL) specifically addresses GPL concerns when linking LLVM libraries.
 
 ### Runtime component breakdown
 
