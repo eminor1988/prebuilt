@@ -81,7 +81,7 @@ jobs:
       - name: Build WasmEdge
         run: |
           git clone --depth 1 --branch ${{ env.WasmEdge_VERSION }} https://github.com/WasmEdge/WasmEdge.git /tmp/wasmedge
-          cd /tmp/wasmedge && git apply prebuilt/scripts/windows-mingw-llvm23/patch/wasmedge-0.17.1.patch
+          cd /tmp/wasmedge && git apply $GITHUB_WORKSPACE/prebuilt/scripts/windows-mingw-llvm23/patch/wasmedge-0.17.1.patch
           LLVM_DIR=$(find /deps/llvm -name "LLVMConfig.cmake" -exec dirname {} \; | head -1)
           echo "LLVM_DIR=$LLVM_DIR"
           cmake -S /tmp/wasmedge -B /tmp/wasmedge/build -G Ninja \
