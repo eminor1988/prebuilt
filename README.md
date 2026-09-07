@@ -64,6 +64,16 @@ build-llvm-{version}-{platform}-{compiler}  →  build-wasmedge-{version}-{platf
 
 WasmEdge workflows depend on prebuilt LLVM via `workflow_call` with `llvm_release_tag` input.
 
+## Scripts
+
+| Script | Description |
+|--------|-------------|
+| `scripts/{workflow_name}.py` | Helper scripts, named to match their corresponding workflow |
+
+### Rules
+- Scripts **must** be written in **Python 3** (no Bash, PowerShell, or other languages)
+- Script filename must match the workflow it belongs to: `build-{package}-{version}-{platform}-{compiler}-{compiler_version}.py`
+
 ## Runner Versions
 
 | Platform | Runner |
