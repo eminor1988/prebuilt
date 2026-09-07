@@ -32,7 +32,7 @@ jobs:
         run: |
           apk add --no-cache \
             build-base cmake ninja python3 git wget linux-headers \
-            clang22 lld22 libc++-dev libc++
+            clang22 lld22 libc++-dev libc++ llvm-libunwind-dev
 
       - name: Compute release tag
         id: meta
@@ -73,7 +73,8 @@ jobs:
             -DLLVM_INCLUDE_BENCHMARKS=OFF \
             -DLLVM_ENABLE_ASSERTIONS=ON \
             -DLLVM_ENABLE_LLD=ON \
-            -DLLVM_ENABLE_LIBCXX=ON
+            -DLLVM_ENABLE_LIBCXX=ON \
+            -DCMAKE_CXX_FLAGS="-stdlib=libc++ -fuse-ld=lld"
           cmake --build /tmp/llvm/build
           cmake --install /tmp/llvm/build
           rm -rf /tmp/llvm
