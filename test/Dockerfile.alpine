@@ -1,0 +1,19 @@
+FROM alpine:3.19
+
+RUN apk add --no-cache \
+    cmake \
+    ninja-build \
+    clang-18 \
+    lld-18 \
+    make \
+    pkgconf \
+    linux-headers \
+    wget \
+    tar \
+    xz
+
+# Make clang-18 the default
+RUN ln -sf /usr/bin/clang-18 /usr/bin/cc && \
+    ln -sf /usr/bin/clang++-18 /usr/bin/c++
+
+WORKDIR /workspace
