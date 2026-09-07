@@ -32,7 +32,7 @@ jobs:
         run: |
           apk add --no-cache \
             build-base cmake ninja python3 git wget pkgconf \
-            clang22 lld22
+            clang22 lld22 xcb-dev
 
       - name: Clone Vulkan-Headers
         run: |
@@ -73,10 +73,7 @@ jobs:
             -DCMAKE_INSTALL_PREFIX=/tmp/vulkan-loader-install \
             -DCMAKE_PREFIX_PATH=/tmp/vulkan-install \
             -DBUILD_STATIC_LOADER=ON \
-            -DBUILD_TESTS=OFF \
-            -DENABLE_WSI_XCB_SUPPORT=OFF \
-            -DENABLE_WSI_XLIB_SUPPORT=OFF \
-            -DENABLE_WSI_WAYLAND_SUPPORT=OFF
+            -DBUILD_TESTS=OFF
           cmake --build /tmp/vulkan-loader/build
           mkdir -p /tmp/vulkan-loader-install/lib
           cp /tmp/vulkan-loader/build/loader/libvulkan.a /tmp/vulkan-loader-install/lib/
