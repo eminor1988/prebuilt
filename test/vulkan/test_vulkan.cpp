@@ -2,7 +2,6 @@
 // Verifies prebuilt Vulkan-Loader static library links and basic API works.
 // No GPU required — just tests linking and instance-level functions.
 
-#define VK_USE_PLATFORM_XCB_KHR
 #include <vulkan/vulkan.h>
 #include <cstdio>
 #include <cstdlib>

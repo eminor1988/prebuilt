@@ -24,12 +24,11 @@ int main() {
     WasmEdge_String func_name = WasmEdge_StringCreateByCString("main");
     WasmEdge_Value results[1];
 
-    WasmEdge_Result res = WasmEdge_VMRunWasmFile(vm, "hello.wasm", func_name, results, 1);
+    WasmEdge_Result res = WasmEdge_VMRunWasmFromFile(vm, "hello.wasm", func_name, NULL, 0, results, 1);
 
     if (!WasmEdge_ResultOK(res)) {
-        char msg[256];
-        WasmEdge_ResultGetMessage(res, msg, sizeof(msg));
-        fprintf(stderr, "  Run failed: %s\n", msg);
+        const char *err_msg = WasmEdge_ResultGetMessage(res);
+        fprintf(stderr, "  Run failed: %s\n", err_msg ? err_msg : "(null)");
         WasmEdge_StringDelete(func_name);
         WasmEdge_VMDelete(vm);
         WasmEdge_ConfigureDelete(conf);

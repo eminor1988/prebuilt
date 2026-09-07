@@ -76,10 +76,30 @@ jobs:
             -DWASMEDGE_BUILD_TESTS=OFF
           cmake --build /tmp/wasmedge/build
           cmake --install /tmp/wasmedge/build
-          rm -rf /tmp/wasmedge
+
+      - name: Verify libwasmedge.a links cleanly
+        run: |
+          cat > /tmp/test_link.c << 'EOF'
+          #include <wasmedge/wasmedge.h>
+          int main() {
+              WasmEdge_ConfigureContext *conf = WasmEdge_ConfigureCreate();
+              WasmEdge_VMContext *vm = WasmEdge_VMCreate(conf, NULL);
+              WasmEdge_VMDelete(vm);
+              WasmEdge_ConfigureDelete(conf);
+              return 0;
+          }
+          EOF
+          clang-22 -fuse-ld=lld \
+            -I/tmp/wasmedge-install/include \
+            /tmp/test_link.c \
+            -L/tmp/wasmedge-install/lib \
+            -lwasmedge \
+            -lpthread \
+            -o /tmp/test_link
 
       - name: Package
         run: |
+          rm -rf /tmp/wasmedge
           cd /tmp/wasmedge-install
           tar -czf /tmp/wasmedge-${{ env.WasmEdge_VERSION }}-${{ env.TARGET_TRIPLE }}-${{ env.COMPILER }}-${{ env.COMPILER_VERSION }}-${{ env.STDLIB }}-${{ env.LLD }}.tar.gz .
 

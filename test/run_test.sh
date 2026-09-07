@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test/run_test.sh — Dispatcher for prebuilt static library tests
-# Usage: GIT_COMMIT=<sha> ./run_test.sh [libuv|vulkan|wasmedge|all]
+# Usage: ./run_test.sh [libuv|vulkan|wasmedge|all]
 #
 # Each subdirectory has its own self-contained run_test.sh.
 # Adding a new test: just drop a new directory with run_test.sh.
