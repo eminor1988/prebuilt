@@ -76,6 +76,15 @@ jobs:
       - name: Build WasmEdge
         run: |
           git clone --depth 1 --branch ${{ env.WasmEdge_VERSION }} https://github.com/WasmEdge/WasmEdge.git /tmp/wasmedge
+          python3 -c "
+p = '/tmp/wasmedge/include/host/wasi/inode.h'
+c = open(p).read()
+c = c.replace('const auto Ptr = &T::doReset;\n      return (Base.*Ptr)();', 'return Base.doReset();')
+c = c.replace('const auto Ptr = &T::doRewind;\n      return (Base.*Ptr)(First);', 'return Base.doRewind(First);')
+c = c.replace('const auto Ptr = &T::doNext;\n      return (Base.*Ptr)();', 'return Base.doNext();')
+c = c.replace('const auto Ptr = &T::doLoadDirent;\n      return (Base.*Ptr)();', 'return Base.doLoadDirent();')
+open(p, 'w').write(c)
+"
           LLVM_DIR=$(find /deps/llvm -name "LLVMConfig.cmake" -exec dirname {} \; | head -1)
           echo "LLVM_DIR=$LLVM_DIR"
           cmake -S /tmp/wasmedge -B /tmp/wasmedge/build -G Ninja \
