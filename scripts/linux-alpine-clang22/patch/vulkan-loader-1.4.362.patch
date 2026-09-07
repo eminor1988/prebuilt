@@ -1,0 +1,18 @@
+diff --git a/loader/CMakeLists.txt b/loader/CMakeLists.txt
+index f29ee7a..f97dbac 100644
+--- a/loader/CMakeLists.txt
++++ b/loader/CMakeLists.txt
+@@ -424,9 +424,11 @@ else()
+         mark_as_advanced(APPLE_STATIC_LOADER)
+     endif()
+ 
+-    if(APPLE_STATIC_LOADER)
++    if(APPLE_STATIC_LOADER OR BUILD_STATIC_LOADER)
+         add_library(vulkan STATIC)
+-        target_compile_definitions(vulkan PRIVATE APPLE_STATIC_LOADER)
++        if(APPLE_STATIC_LOADER)
++            target_compile_definitions(vulkan PRIVATE APPLE_STATIC_LOADER)
++        endif()
+ 
+         message(WARNING "The APPLE_STATIC_LOADER option has been set. Note that this will only work on MacOS and is not supported "
+                 "or tested as part of the loader. Use it at your own risk.")
