@@ -43,6 +43,11 @@ jobs:
             build-base cmake ninja python3 git wget linux-headers \
             clang22 lld22 libc++-dev libc++ libc++-static llvm-libunwind-dev zstd-dev zlib-dev ncurses-dev zstd-static zlib-static ncurses-static
 
+      - name: Checkout prebuilt repo
+        uses: actions/checkout@v4
+        with:
+          path: prebuilt
+
       - name: Download prebuilt LLVM
         run: |
           mkdir -p /deps/llvm
@@ -60,6 +65,7 @@ jobs:
       - name: Build WasmEdge
         run: |
           git clone --depth 1 --branch ${{ env.WasmEdge_VERSION }} https://github.com/WasmEdge/WasmEdge.git /tmp/wasmedge
+          cd /tmp/wasmedge && git apply $GITHUB_WORKSPACE/prebuilt/scripts/linux-alpine-clang22/patch/wasmedge-0.17.1.patch
           LLVM_DIR=$(find /deps/llvm -name "LLVMConfig.cmake" -exec dirname {} \; | head -1)
           echo "LLVM_DIR=$LLVM_DIR"
           cmake -S /tmp/wasmedge -B /tmp/wasmedge/build -G Ninja \

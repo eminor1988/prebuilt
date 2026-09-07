@@ -1,0 +1,36 @@
+diff --git a/lib/host/wasi/inode-linux.cpp b/lib/host/wasi/inode-linux.cpp
+index 3e4a8e5..cb09da4 100644
+--- a/lib/host/wasi/inode-linux.cpp
++++ b/lib/host/wasi/inode-linux.cpp
+@@ -20,6 +20,13 @@
+ #include <string_view>
+ #include <vector>
+ 
++// O_SYMLINK is a BSD/macOS flag not present in Linux headers.
++// Define as 0 for safety; the code paths using it are legacy fallbacks
++// that should not be reached on modern Linux (glibc >= 2.6 or musl).
++#ifndef O_SYMLINK
++#define O_SYMLINK 0
++#endif
++
+ using namespace std::literals;
+ 
+ namespace WasmEdge {
+diff --git a/lib/host/wasi/linux.h b/lib/host/wasi/linux.h
+index ba76421..baa50d6 100644
+--- a/lib/host/wasi/linux.h
++++ b/lib/host/wasi/linux.h
+@@ -44,12 +44,9 @@
+ #endif
+ #define _LIBCPP_GLIBC_PREREQ(a, b) 0
+ #else
+-#if defined(_LIBCPP_GLIBC_PREREQ)
+-#define __GLIBC_PREREQ(a, b) _LIBCPP_GLIBC_PREREQ(a, b)
+-#else
++// Not on glibc (e.g. musl): all modern Linux syscalls are available.
+ #define __GLIBC_PREREQ(a, b) 1
+ #endif
+-#endif
+ 
+ #if __GLIBC_PREREQ(2, 8)
+ #include <sys/timerfd.h>
