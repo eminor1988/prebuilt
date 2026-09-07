@@ -94,7 +94,7 @@ jobs:
             /tmp/test_link.c \
             -L/tmp/wasmedge-install/lib \
             -lwasmedge \
-            -lc++ \
+            -lc++ -lc++abi \
             -lpthread \
             -o /tmp/test_link
 
