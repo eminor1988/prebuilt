@@ -1,12 +1,12 @@
 diff --git a/include/host/wasi/inode.h b/include/host/wasi/inode.h
-index 15bad33..7c83bee 100644
+index 15bad33..bfc2bd3 100644
 --- a/include/host/wasi/inode.h
 +++ b/include/host/wasi/inode.h
 @@ -283,6 +283,7 @@ private:
  
  #if !WINAPI_PARTITION_DESKTOP || NTDDI_VERSION >= NTDDI_VISTA
  class FindHolder : public FindHolderBase<FindHolder> {
-+  friend struct FindHolderBase<FindHolder>;
++  friend class FindHolderBase<FindHolder>;
  public:
    const winapi::FILE_ID_BOTH_DIR_INFO_ &getData() const noexcept;
  
@@ -14,7 +14,7 @@ index 15bad33..7c83bee 100644
  };
  #else
  class FindHolder : public FindHolderBase<FindHolder> {
-+  friend struct FindHolderBase<FindHolder>;
++  friend class FindHolderBase<FindHolder>;
  protected:
    WasiExpect<winapi::HANDLE_> doEmplace(const std::filesystem::path &NewPath,
                                          winapi::HANDLE_ PathHandle) noexcept;
