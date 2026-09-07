@@ -43,6 +43,8 @@ build-{package}-{version}-{platform}-{compiler}-{compiler_version}.yml
 | `build-wasmedge-0.17.1-macos-clang-23.1.0.yml` | macOS aarch64 | `wasmedge-0.17.1-aarch64-apple-macos-clang-23.1.0-libcxx-lld` |
 | `build-vulkan-loader-1.4.362-windows-mingw-llvm23.yml` | Windows x86_64 (MinGW) | `vulkan-loader-1.4.362-x86_64-w64-windows-gnu-mingw-23.1.0-static` |
 | `build-vulkan-loader-1.4.362-linux-alpine-clang22.yml` | Linux x86_64 (Alpine) | `vulkan-loader-1.4.362-x86_64-linux-linux-clang-22.1.3-static` |
+| `build-libuv-1.49.2-windows-mingw-llvm23.yml` | Windows x86_64 (MinGW) | `libuv-1.49.2-x86_64-w64-windows-gnu-mingw-23.1.0-static` |
+| `build-libuv-1.49.2-linux-alpine-clang22.yml` | Linux x86_64 (Alpine) | `libuv-1.49.2-x86_64-linux-linux-clang-22.1.3-static` |
 
 ## Build Strategy
 
@@ -62,6 +64,11 @@ build-{package}-{version}-{platform}-{compiler}-{compiler_version}.yml
 - **Windows (MinGW)**: llvm-mingw Clang 23.1.0, MinGW patches applied, static loader (`BUILD_STATIC_LOADER=ON`)
 - **Linux (Alpine)**: Clang 22.1.3, native musl, static loader (`BUILD_STATIC_LOADER=ON`)
 - No tests, no tools
+
+### libuv
+- **Windows (MinGW)**: llvm-mingw Clang 23.1.0, static only (`BUILD_SHARED_LIBS=OFF`)
+- **Linux (Alpine)**: Clang 22.1.3, native musl, static only (`LIBUV_BUILD_SHARED=OFF`)
+- No tests
 
 ## Dependency Chain
 

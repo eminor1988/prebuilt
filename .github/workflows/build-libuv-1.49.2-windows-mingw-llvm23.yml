@@ -1,0 +1,110 @@
+name: Build libuv 1.49.2 Windows MinGW llvm-mingw 23.1.0
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  LIBUV_VERSION: "v1.49.2"
+  TARGET_TRIPLE: x86_64-w64-windows-gnu
+  COMPILER: mingw
+  COMPILER_VERSION: "23.1.0"
+  STDLIB: static
+  LLD: lld
+
+jobs:
+  build:
+    name: Build libuv 1.49.2 (Windows x86_64 MinGW llvm-mingw 23.1.0)
+    runs-on: ubuntu-latest
+    container: mstorsjo/llvm-mingw:20260826
+    outputs:
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+    steps:
+      - name: Checkout prebuilt repo
+        uses: actions/checkout@v4
+        with:
+          path: prebuilt
+
+      - name: Install dependencies
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends \
+            cmake ninja-build python3 git wget ca-certificates
+
+      - name: MinGW toolchain file
+        run: |
+          cat > /tmp/mingw-toolchain.cmake <<'EOF'
+          set(CMAKE_SYSTEM_NAME Windows)
+          set(CMAKE_SYSTEM_PROCESSOR x86_64)
+          set(CMAKE_C_COMPILER x86_64-w64-mingw32-clang)
+          set(CMAKE_CXX_COMPILER x86_64-w64-mingw32-clang++)
+          set(CMAKE_RC_COMPILER x86_64-w64-mingw32-windres)
+          set(CMAKE_AR x86_64-w64-mingw32-llvm-ar)
+          set(CMAKE_RANLIB x86_64-w64-mingw32-llvm-ranlib)
+          set(CMAKE_NM x86_64-w64-mingw32-llvm-nm)
+          set(CMAKE_STRIP x86_64-w64-mingw32-llvm-strip)
+          set(CMAKE_SYSROOT /opt/llvm-mingw/x86_64-w64-mingw32)
+          set(CMAKE_FIND_ROOT_PATH /opt/llvm-mingw/x86_64-w64-mingw32)
+          set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+          set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+          set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+          set(CMAKE_EXE_LINKER_FLAGS_INIT "-fuse-ld=lld")
+          EOF
+
+      - name: Clone libuv
+        run: |
+          git clone --depth 1 --branch ${{ env.LIBUV_VERSION }} \
+            https://github.com/libuv/libuv.git /tmp/libuv
+
+      - name: Apply patches
+        run: |
+          python3 prebuilt/scripts/build-libuv-1.49.2-windows-mingw-llvm23.py /tmp/libuv
+
+      - name: Compute release tag
+        id: meta
+        run: |
+          TAG="libuv-${{ env.LIBUV_VERSION }}-${{ env.TARGET_TRIPLE }}-${{ env.COMPILER }}-${{ env.COMPILER_VERSION }}-${{ env.STDLIB }}-${{ env.LLD }}"
+          echo "release_tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Build libuv
+        run: |
+          cmake -S /tmp/libuv -B /tmp/libuv/build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=/tmp/mingw-toolchain.cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/tmp/libuv-install \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DBUILD_TESTING=OFF
+          cmake --build /tmp/libuv/build
+          cmake --install /tmp/libuv/build
+          rm -rf /tmp/libuv
+
+      - name: Package
+        run: |
+          cd /tmp/libuv-install
+          tar -czf /tmp/libuv-${{ env.LIBUV_VERSION }}-${{ env.TARGET_TRIPLE }}-${{ env.COMPILER }}-${{ env.COMPILER_VERSION }}-${{ env.STDLIB }}-${{ env.LLD }}.tar.gz .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libuv-windows-mingw
+          path: /tmp/libuv-*.tar.gz
+
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: libuv-windows-mingw
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build.outputs.release_tag }}
+          name: "libuv ${{ env.LIBUV_VERSION }} (${{ env.TARGET_TRIPLE }}, ${{ env.COMPILER }} ${{ env.COMPILER_VERSION }})"
+          files: libuv-*.tar.gz
+          draft: false
+          prerelease: false
