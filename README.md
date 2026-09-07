@@ -18,33 +18,36 @@ build-{package}-{version}-{platform}-{compiler}-{compiler_version}.yml
 |-------|-------------|---------|
 | `package` | Library name | `llvm`, `wasmedge` |
 | `version` | Exact version | `23.1.0`, `0.17.1` |
-| `target_triple` | LLVM target triple | `x86_64-pc-windows-msvc`, `x86_64-linux-linux` |
-| `compiler` | Compiler family | `msvc`, `clang`, `emscripten` |
-| `compiler_version` | Compiler version | `19.44`, `23.1.0`, `3.1.64` |
+| `target_triple` | LLVM target triple | `x86_64-pc-windows-msvc`, `x86_64-w64-windows-gnu`, `x86_64-linux-linux` |
+| `compiler` | Compiler family | `msvc`, `clang`, `mingw`, `emscripten` |
+| `compiler_version` | Compiler version | `19.44`, `22.1.3`, `23.1.0`, `3.1.64` |
 | `stdlib` | C++ standard library | `mt` (MSVC static CRT), `libcxx` |
 | `lld` | Linker | `lld` |
 
 ### Artifact extensions
-- `.zip` for Windows
-- `.tar.gz` for Linux, macOS, Emscripten
+- `.zip` for Windows (native MSVC)
+- `.tar.gz` for Linux, macOS, Emscripten, MinGW cross-compile
 
 ## Workflows
 
 | Workflow | Platform | Release Tag |
 |----------|----------|-------------|
-| `build-llvm-23.1.0-windows-msvc-19.44.yml` | Windows x86_64 | `llvm-23.1.0-x86_64-pc-windows-msvc-19.44-mt-lld` |
-| `build-llvm-23.1.0-linux-clang-23.1.0.yml` | Linux x86_64 | `llvm-23.1.0-x86_64-linux-linux-clang-23.1.0-libcxx-lld` |
+| `build-llvm-23.1.0-linux-alpine-clang22.yml` | Linux x86_64 (Alpine) | `llvm-23.1.0-x86_64-linux-linux-clang-22.1.3-libcxx-lld` |
+| `build-llvm-23.1.0-windows-mingw-llvm23.yml` | Windows x86_64 (MinGW) | `llvm-23.1.0-x86_64-w64-windows-gnu-mingw-23.1.0-libcxx-lld` |
+| `build-llvm-23.1.0-windows-msvc-19.44.yml` | Windows x86_64 (MSVC) | `llvm-23.1.0-x86_64-pc-windows-msvc-19.44-mt-lld` |
 | `build-llvm-23.1.0-macos-clang-23.1.0.yml` | macOS aarch64 | `llvm-23.1.0-aarch64-apple-macos-clang-23.1.0-libcxx-lld` |
 | `build-llvm-23.1.0-emscripten-3.1.64.yml` | Emscripten wasm32 | `llvm-23.1.0-wasm32-unknown-emscripten-emscripten-3.1.64-libcxx-lld` |
-| `build-wasmedge-0.17.1-windows-msvc-19.44.yml` | Windows x86_64 | `wasmedge-0.17.1-x86_64-pc-windows-msvc-19.44-mt-lld` |
-| `build-wasmedge-0.17.1-linux-clang-23.1.0.yml` | Linux x86_64 | `wasmedge-0.17.1-x86_64-linux-linux-clang-23.1.0-libcxx-lld` |
+| `build-wasmedge-0.17.1-linux-alpine-clang22.yml` | Linux x86_64 (Alpine) | `wasmedge-0.17.1-x86_64-linux-linux-clang-22.1.3-libcxx-lld` |
+| `build-wasmedge-0.17.1-windows-mingw-llvm23.yml` | Windows x86_64 (MinGW) | `wasmedge-0.17.1-x86_64-w64-windows-gnu-mingw-23.1.0-libcxx-lld` |
+| `build-wasmedge-0.17.1-windows-msvc-19.44.yml` | Windows x86_64 (MSVC) | `wasmedge-0.17.1-x86_64-pc-windows-msvc-19.44-mt-lld` |
 | `build-wasmedge-0.17.1-macos-clang-23.1.0.yml` | macOS aarch64 | `wasmedge-0.17.1-aarch64-apple-macos-clang-23.1.0-libcxx-lld` |
 
 ## Build Strategy
 
 ### LLVM
-- **Windows**: `/MT` static CRT (MSVC 19.44), LLD linker
-- **Linux**: Clang 23.1.0, `LLVM_ENABLE_LIBCXX=ON`, LLD linker
+- **Linux (Alpine)**: Clang 22.1.3, `LLVM_ENABLE_LIBCXX=ON`, LLD linker, native musl
+- **Windows (MinGW)**: llvm-mingw Clang 23.1.0, `LLVM_ENABLE_LIBCXX=ON`, LLD linker, cross-compile from Linux
+- **Windows (MSVC)**: `/MT` static CRT (MSVC 19.44), LLD linker
 - **macOS**: Clang 23.1.0, `LLVM_ENABLE_LIBCXX=ON`, LLD linker
 - **Emscripten**: Emscripten 3.1.64, `LLVM_TARGETS_TO_BUILD=WebAssembly`
 
@@ -61,13 +64,15 @@ build-llvm-{version}-{platform}-{compiler}  →  build-wasmedge-{version}-{platf
 
 WasmEdge workflows depend on prebuilt LLVM via `workflow_call` with `llvm_release_tag` input.
 
-## Runner Versions (Fixed)
+## Runner Versions
 
 | Platform | Runner |
 |----------|--------|
-| Windows | `windows-2025` |
-| Linux | `ubuntu-24.04` |
+| Windows (MSVC) | `windows-2025` |
+| Windows (MinGW) | `ubuntu-latest` + `container: mstorsjo/llvm-mingw:20260826` |
+| Linux (Alpine) | `ubuntu-latest` + `container: alpine:3.24` |
 | macOS | `macos-15` |
+| Emscripten | `ubuntu-24.04` |
 
 ## License
 

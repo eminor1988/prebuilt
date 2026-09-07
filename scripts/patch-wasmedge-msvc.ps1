@@ -1,7 +1,6 @@
 # patch-wasmedge-msvc.ps1
 # Patches WasmEdge 0.17.1 cmake files for MSVC static library building.
-# On MSVC, `ar -x` / `ar -qcs` don't work; use `lib.exe /OUT:` to merge directly.
-# Library naming: .a -> .lib on MSVC.
+# Uses line-by-line processing for reliability across different line endings.
 
 param(
   [Parameter(Mandatory)]
@@ -10,334 +9,249 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Patch-File {
+  param([string]$FilePath, [scriptblock]$PatchFunc)
+  $lines = Get-Content $FilePath
+  $lines = & $PatchFunc $lines
+  Set-Content $FilePath ($lines -join "`n") -NoNewline
+  Write-Host "Patched $FilePath"
+}
+
 # ============================================================
 # Patch 1: lib/api/CMakeLists.txt
 # ============================================================
 $file1 = Join-Path $SourceDir "lib\api\CMakeLists.txt"
-$c = (Get-Content $file1 -Raw) -replace "`r`n", "`n"
 
-# --- 1a: wasmedge_add_static_lib_component_command ---
-# Insert elseif(MSVC) before the else() branch
-$old1a = @'
-  else()
-    list(APPEND CMDS
-      COMMAND ${CMAKE_COMMAND} -E make_directory objs/${target}
-      COMMAND ${CMAKE_COMMAND} -E chdir objs/${target} ${CMAKE_AR} -x $<TARGET_FILE:${target}>
-    )
-    set(WASMEDGE_STATIC_LIB_AR_CMDS ${WASMEDGE_STATIC_LIB_AR_CMDS} ${CMDS} PARENT_SCOPE)
-  endif()
-  set(WASMEDGE_STATIC_LIB_DEPS ${WASMEDGE_STATIC_LIB_DEPS} ${target} PARENT_SCOPE)
-endfunction()
-'@
+Patch-File -FilePath $file1 -PatchFunc {
+  param([string[]]$lines)
+  $result = @()
+  $i = 0
+  while ($i -lt $lines.Count) {
+    $line = $lines[$i]
+    $nextLine = if ($i + 1 -lt $lines.Count) { $lines[$i + 1] } else { "" }
 
-$new1a = @'
-  elseif(MSVC)
-    # MSVC: lib.exe /OUT: merges .lib files directly, no extract needed.
-  else()
-    list(APPEND CMDS
-      COMMAND ${CMAKE_COMMAND} -E make_directory objs/${target}
-      COMMAND ${CMAKE_COMMAND} -E chdir objs/${target} ${CMAKE_AR} -x $<TARGET_FILE:${target}>
-    )
-    set(WASMEDGE_STATIC_LIB_AR_CMDS ${WASMEDGE_STATIC_LIB_AR_CMDS} ${CMDS} PARENT_SCOPE)
-  endif()
-  set(WASMEDGE_STATIC_LIB_DEPS ${WASMEDGE_STATIC_LIB_DEPS} ${target} PARENT_SCOPE)
-endfunction()
-'@
+    # --- Patch 1a: wasmedge_add_static_lib_component_command ---
+    # Match the else() after endif() in the first function (before "set(WASMEDGE_STATIC_LIB_DEPS")
+    # The pattern: "  else()" followed by "    list(APPEND CMDS" with "chdir objs/${target}"
+    if ($line.Trim() -eq "else()" -and $nextLine.Trim().StartsWith("list(APPEND CMDS")) {
+      # Check if this is in wasmedge_add_static_lib_component_command by looking for ${target} (not ${target_name})
+      $lookAhead = ($i + 2 .. [Math]::Min($i + 5, $lines.Count - 1)) | ForEach-Object { $lines[$_] }
+      $isFunc1 = ($lookAhead -join "`n") -match 'chdir objs/\$\{target\}'
+      $isFunc2 = ($lookAhead -join "`n") -match 'chdir objs/\$\{target_name\}'
 
-$c = $c.Replace($old1a, $new1a)
-Write-Host "Patched 1a: wasmedge_add_static_lib_component_command"
+      if ($isFunc1 -and -not $isFunc2) {
+        $result += "  elseif(MSVC)"
+        $result += "    # MSVC: lib.exe /OUT: merges .lib files directly, no extract needed."
+        Write-Host "  Inserted elseif(MSVC) in wasmedge_add_static_lib_component_command"
+      }
+    }
 
-# --- 1b: wasmedge_add_libs_component_command ---
-# Insert elseif(MSVC) before the else() branch
-$old1b = @'
-  else()
-    list(APPEND CMDS
-      COMMAND ${CMAKE_COMMAND} -E make_directory objs/${target_name}
-      COMMAND ${CMAKE_COMMAND} -E chdir objs/${target_name} ${CMAKE_AR} -x ${target_path}
-    )
-    set(WASMEDGE_STATIC_LLVM_LIB_AR_CMDS ${WASMEDGE_STATIC_LLVM_LIB_AR_CMDS} ${CMDS} PARENT_SCOPE)
-  endif()
-endfunction()
-'@
+    # --- Patch 1c: Final add_custom_command block ---
+    # Replace "if(CMAKE_AR_NAME STREQUAL" with "if(MSVC) ... elseif(CMAKE_AR_NAME STREQUAL"
+    if ($line.Trim() -eq 'if(CMAKE_AR_NAME STREQUAL "libtool")') {
+      $result += "  if(MSVC)"
+      $result += "    # MSVC: merge all .lib files directly with lib.exe /OUT:"
+      $result += "    set(_WASMEDGE_ALL_LIBS `"")"
+      $result += "    foreach(_DEP `${WASMEDGE_STATIC_LIB_DEPS})"
+      $result += "      list(APPEND _WASMEDGE_ALL_LIBS `"`$<TARGET_FILE: `${_DEP}>`")"
+      $result += "    endforeach()"
+      $result += "    foreach(_LLVM_LIB `${WASMEDGE_LLVM_LINK_STATIC_COMPONENTS})"
+      $result += "      list(APPEND _WASMEDGE_ALL_LIBS `"`${_LLVM_LIB}`")"
+      $result += "    endforeach()"
+      $result += "    add_custom_command(OUTPUT `"wasmedge.lib`""
+      $result += "      COMMAND `${CMAKE_AR} /NOLOGO /OUT:wasmedge.lib `${_WASMEDGE_ALL_LIBS} `$<TARGET_OBJECTS:wasmedgeCAPI>"
+      $result += "      WORKING_DIRECTORY `${CMAKE_CURRENT_BINARY_DIR}"
+      $result += "      DEPENDS `${WASMEDGE_STATIC_LIB_DEPS} wasmedgeCAPI"
+      $result += "    )"
+      $result += "  elseif(CMAKE_AR_NAME STREQUAL `"libtool`")"
+      Write-Host "  Inserted MSVC branch in add_custom_command"
+      $i++
+      continue
+    }
 
-$new1b = @'
-  elseif(MSVC)
-    # MSVC: lib.exe /OUT: merges .lib files directly, no extract needed.
-  else()
-    list(APPEND CMDS
-      COMMAND ${CMAKE_COMMAND} -E make_directory objs/${target_name}
-      COMMAND ${CMAKE_COMMAND} -E chdir objs/${target_name} ${CMAKE_AR} -x ${target_path}
-    )
-    set(WASMEDGE_STATIC_LLVM_LIB_AR_CMDS ${WASMEDGE_STATIC_LLVM_LIB_AR_CMDS} ${CMDS} PARENT_SCOPE)
-  endif()
-endfunction()
-'@
+    # --- Patch 1c continued: Replace "add_custom_target(... libwasmedge.a)" block ---
+    if ($line.Trim() -eq 'add_custom_target(wasmedge_static_target ALL DEPENDS "libwasmedge.a")') {
+      # Skip the old block and write the new MSVC/else block
+      # We need to skip until we find the install() for libwasmedge.a
+      $result += "  if(MSVC)"
+      $result += "    add_custom_target(wasmedge_static_target ALL DEPENDS `"wasmedge.lib`")"
+      $result += "    add_library(wasmedge_static STATIC IMPORTED GLOBAL)"
+      $result += "    add_dependencies(wasmedge_static wasmedge_static_target)"
+      $result += "    set_target_properties(wasmedge_static"
+      $result += "      PROPERTIES"
+      $result += "      IMPORTED_LOCATION `"`${CMAKE_CURRENT_BINARY_DIR}/wasmedge.lib`""
+      $result += "      INTERFACE_INCLUDE_DIRECTORIES `${PROJECT_BINARY_DIR}/include/api"
+      $result += "    )"
+      $result += "    install(FILES `${CMAKE_CURRENT_BINARY_DIR}/wasmedge.lib"
+      $result += "      DESTINATION `${CMAKE_INSTALL_LIBDIR}"
+      $result += "      COMPONENT WasmEdge"
+      $result += "    )"
+      $result += "  else()"
+      $result += "    add_custom_target(wasmedge_static_target ALL DEPENDS `"libwasmedge.a`")"
+      $result += "    add_library(wasmedge_static STATIC IMPORTED GLOBAL)"
+      $result += "    add_dependencies(wasmedge_static wasmedge_static_target)"
+      $result += "    set_target_properties(wasmedge_static"
+      $result += "      PROPERTIES"
+      $result += "      IMPORTED_LOCATION `"`${CMAKE_CURRENT_BINARY_DIR}/libwasmedge.a`""
+      $result += "      INTERFACE_INCLUDE_DIRECTORIES `${PROJECT_BINARY_DIR}/include/api"
+      $result += "    )"
+      $result += "    install(FILES `${CMAKE_CURRENT_BINARY_DIR}/libwasmedge.a"
+      $result += "      DESTINATION `${CMAKE_INSTALL_LIBDIR}"
+      $result += "      COMPONENT WasmEdge"
+      $result += "    )"
+      $result += "  endif()"
+      Write-Host "  Replaced add_custom_target + set_target_properties + install block"
 
-$c = $c.Replace($old1b, $new1b)
-Write-Host "Patched 1b: wasmedge_add_libs_component_command"
+      # Skip lines until we pass the old install(FILES ... libwasmedge.a) block
+      while ($i -lt $lines.Count) {
+        if ($lines[$i] -match '^\s*install\(FILES.*libwasmedge\.a') {
+          $i++ # skip the install line
+          # Also skip closing paren if on next line
+          if ($i -lt $lines.Count -and $lines[$i].Trim() -eq ")") { $i++ }
+          break
+        }
+        $i++
+      }
+      continue
+    }
 
-# --- 1c: Final add_custom_command + target + install block ---
-# Replace the if(CMAKE_AR_NAME)/else/endif + add_custom_target + set_target_properties + install
-# with MSVC-aware version
-$old1c = @'
-  if(CMAKE_AR_NAME STREQUAL "libtool")
-    add_custom_command(OUTPUT "libwasmedge.a"
-      COMMAND ${CMAKE_AR} -static -o libwasmedge.a ${WASMEDGE_STATIC_LIB_LIBTOOL_FILES} $<TARGET_OBJECTS:wasmedgeCAPI>
-      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-      DEPENDS ${WASMEDGE_STATIC_LIB_DEPS} wasmedgeCAPI
-    )
-  else()
-    add_custom_command(OUTPUT "libwasmedge.a"
-      ${WASMEDGE_STATIC_LIB_AR_CMDS}
-      ${WASMEDGE_STATIC_LLVM_LIB_AR_CMDS}
-      COMMAND ${CMAKE_AR} -qcs libwasmedge.a $<TARGET_OBJECTS:wasmedgeCAPI> objs/*/*.o
-      COMMAND ${CMAKE_COMMAND} -E remove_directory objs
-      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-      DEPENDS ${WASMEDGE_STATIC_LIB_DEPS} wasmedgeCAPI
-    )
-  endif()
-
-  add_custom_target(wasmedge_static_target ALL DEPENDS "libwasmedge.a")
-  add_library(wasmedge_static STATIC IMPORTED GLOBAL)
-  add_dependencies(wasmedge_static wasmedge_static_target)
-
-  set_target_properties(wasmedge_static
-    PROPERTIES
-    IMPORTED_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/libwasmedge.a"
-    INTERFACE_INCLUDE_DIRECTORIES ${PROJECT_BINARY_DIR}/include/api
-  )
-
-  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libwasmedge.a
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    COMPONENT WasmEdge
-  )
-'@
-
-$new1c = @'
-  if(MSVC)
-    # MSVC: merge all .lib files directly with lib.exe /OUT:
-    set(_WASMEDGE_ALL_LIBS "")
-    foreach(_DEP ${WASMEDGE_STATIC_LIB_DEPS})
-      list(APPEND _WASMEDGE_ALL_LIBS "$<TARGET_FILE:${_DEP}>")
-    endforeach()
-    foreach(_LLVM_LIB ${WASMEDGE_LLVM_LINK_STATIC_COMPONENTS})
-      list(APPEND _WASMEDGE_ALL_LIBS "${_LLVM_LIB}")
-    endforeach()
-    add_custom_command(OUTPUT "wasmedge.lib"
-      COMMAND ${CMAKE_AR} /NOLOGO /OUT:wasmedge.lib ${_WASMEDGE_ALL_LIBS} $<TARGET_OBJECTS:wasmedgeCAPI>
-      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-      DEPENDS ${WASMEDGE_STATIC_LIB_DEPS} wasmedgeCAPI
-    )
-  elseif(CMAKE_AR_NAME STREQUAL "libtool")
-    add_custom_command(OUTPUT "libwasmedge.a"
-      COMMAND ${CMAKE_AR} -static -o libwasmedge.a ${WASMEDGE_STATIC_LIB_LIBTOOL_FILES} $<TARGET_OBJECTS:wasmedgeCAPI>
-      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-      DEPENDS ${WASMEDGE_STATIC_LIB_DEPS} wasmedgeCAPI
-    )
-  else()
-    add_custom_command(OUTPUT "libwasmedge.a"
-      ${WASMEDGE_STATIC_LIB_AR_CMDS}
-      ${WASMEDGE_STATIC_LLVM_LIB_AR_CMDS}
-      COMMAND ${CMAKE_AR} -qcs libwasmedge.a $<TARGET_OBJECTS:wasmedgeCAPI> objs/*/*.o
-      COMMAND ${CMAKE_COMMAND} -E remove_directory objs
-      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-      DEPENDS ${WASMEDGE_STATIC_LIB_DEPS} wasmedgeCAPI
-    )
-  endif()
-
-  if(MSVC)
-    add_custom_target(wasmedge_static_target ALL DEPENDS "wasmedge.lib")
-    add_library(wasmedge_static STATIC IMPORTED GLOBAL)
-    add_dependencies(wasmedge_static wasmedge_static_target)
-    set_target_properties(wasmedge_static
-      PROPERTIES
-      IMPORTED_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/wasmedge.lib"
-      INTERFACE_INCLUDE_DIRECTORIES ${PROJECT_BINARY_DIR}/include/api
-    )
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/wasmedge.lib
-      DESTINATION ${CMAKE_INSTALL_LIBDIR}
-      COMPONENT WasmEdge
-    )
-  else()
-    add_custom_target(wasmedge_static_target ALL DEPENDS "libwasmedge.a")
-    add_library(wasmedge_static STATIC IMPORTED GLOBAL)
-    add_dependencies(wasmedge_static wasmedge_static_target)
-    set_target_properties(wasmedge_static
-      PROPERTIES
-      IMPORTED_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/libwasmedge.a"
-      INTERFACE_INCLUDE_DIRECTORIES ${PROJECT_BINARY_DIR}/include/api
-    )
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libwasmedge.a
-      DESTINATION ${CMAKE_INSTALL_LIBDIR}
-      COMPONENT WasmEdge
-    )
-  endif()
-'@
-
-$c = $c.Replace($old1c, $new1c)
-Write-Host "Patched 1c: add_custom_command + install block"
-
-Set-Content $file1 $c -NoNewline
-Write-Host "Wrote $file1"
+    $result += $line
+    $i++
+  }
+  return $result
+}
 
 # ============================================================
 # Patch 2: cmake/Helper.cmake
 # ============================================================
 $file2 = Join-Path $SourceDir "cmake\Helper.cmake"
-$h = (Get-Content $file2 -Raw) -replace "`r`n", "`n"
 
-# --- 2a: llvm-config flags ---
-# On MSVC, --libs --link-static returns full paths; use --libnames instead
-$old2a = @'
-  execute_process(
-    COMMAND ${LLVM_BINARY_DIR}/bin/llvm-config --libs --link-static
-    core lto native nativecodegen option passes support orcjit transformutils all-targets
-    OUTPUT_VARIABLE WASMEDGE_LLVM_LINK_LIBS_NAME
-  )
-  string(REPLACE "-l" "" WASMEDGE_LLVM_LINK_LIBS_NAME "${WASMEDGE_LLVM_LINK_LIBS_NAME}")
-'@
+Patch-File -FilePath $file2 -PatchFunc {
+  param([string[]]$lines)
+  $result = @()
+  $i = 0
+  while ($i -lt $lines.Count) {
+    $line = $lines[$i]
 
-$new2a = @'
-  if(MSVC)
-    execute_process(
-      COMMAND ${LLVM_BINARY_DIR}/bin/llvm-config --libnames
-      core lto native nativecodegen option passes support orcjit transformutils all-targets
-      OUTPUT_VARIABLE WASMEDGE_LLVM_LINK_LIBS_NAME
-    )
-    string(REPLACE ".lib" "" WASMEDGE_LLVM_LINK_LIBS_NAME "${WASMEDGE_LLVM_LINK_LIBS_NAME}")
-  else()
-    execute_process(
-      COMMAND ${LLVM_BINARY_DIR}/bin/llvm-config --libs --link-static
-      core lto native nativecodegen option passes support orcjit transformutils all-targets
-      OUTPUT_VARIABLE WASMEDGE_LLVM_LINK_LIBS_NAME
-    )
-    string(REPLACE "-l" "" WASMEDGE_LLVM_LINK_LIBS_NAME "${WASMEDGE_LLVM_LINK_LIBS_NAME}")
-  endif()
-'@
+    # --- Patch 2a: llvm-config flags ---
+    # Replace "execute_process(" + "llvm-config --libs --link-static" with MSVC/else
+    if ($line -match 'execute_process\(' -and $i + 1 -lt $lines.Count -and $lines[$i + 1] -match 'llvm-config --libs --link-static') {
+      $result += "  if(MSVC)"
+      $result += "    execute_process("
+      $result += "      COMMAND `${LLVM_BINARY_DIR}/bin/llvm-config --libnames"
+      # Copy the next line (core lto native...) as-is
+      $result += $lines[$i + 2]
+      $result += "      OUTPUT_VARIABLE WASMEDGE_LLVM_LINK_LIBS_NAME"
+      $result += "    )"
+      $result += "    string(REPLACE `".lib`" `"`" WASMEDGE_LLVM_LINK_LIBS_NAME `"`${WASMEDGE_LLVM_LINK_LIBS_NAME}`")"
+      $result += "  else()"
+      $result += "    execute_process("
+      $result += "      COMMAND `${LLVM_BINARY_DIR}/bin/llvm-config --libs --link-static"
+      $result += $lines[$i + 2]
+      $result += "      OUTPUT_VARIABLE WASMEDGE_LLVM_LINK_LIBS_NAME"
+      $result += "    )"
+      $result += "    string(REPLACE `"-l`" `"`" WASMEDGE_LLVM_LINK_LIBS_NAME `"`${WASMEDGE_LLVM_LINK_LIBS_NAME}`")"
+      $result += "  endif()"
+      # Skip original 7 lines (execute_process block + string replace)
+      $i += 7
+      Write-Host "  Patched llvm-config flags"
+      continue
+    }
 
-$h = $h.Replace($old2a, $new2a)
-Write-Host "Patched 2a: llvm-config flags"
+    # --- Patch 2b: LLD + LLVM library names ---
+    if ($line.Trim() -eq 'list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS' -and
+        $i + 1 -lt $lines.Count -and $lines[$i + 1] -match 'liblldELF\.a') {
+      $result += "  if(MSVC)"
+      $result += "    list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS"
+      $result += "      `${LLD_LIBRARY_DIR}/lldELF.lib"
+      $result += "      `${LLD_LIBRARY_DIR}/lldCommon.lib"
+      $result += "    )"
+      $result += "    foreach(LIB_NAME IN LISTS WASMEDGE_LLVM_LINK_LIBS_NAME)"
+      $result += "      list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS"
+      $result += "        `${LLVM_LIBRARY_DIR}/${LIB_NAME}.lib"
+      $result += "      )"
+      $result += "    endforeach()"
+      # Skip original block until endif() after lldWasm/liblldWasm
+      while ($i -lt $lines.Count -and $lines[$i] -notmatch '^\s*endif\(\)') { $i++ }
+      $result += "    if(LLVM_VERSION_MAJOR LESS_EQUAL 13)"
+      $result += "      list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS"
+      $result += "        `${LLD_LIBRARY_DIR}/lldCore.lib"
+      $result += "        `${LLD_LIBRARY_DIR}/lldDriver.lib"
+      $result += "        `${LLD_LIBRARY_DIR}/lldReaderWriter.lib"
+      $result += "        `${LLD_LIBRARY_DIR}/lldYAML.lib"
+      $result += "      )"
+      $result += "    else()"
+      $result += "      list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS"
+      $result += "        `${LLD_LIBRARY_DIR}/lldMinGW.lib"
+      $result += "        `${LLD_LIBRARY_DIR}/lldCOFF.lib"
+      $result += "        `${LLD_LIBRARY_DIR}/lldMachO.lib"
+      $result += "        `${LLD_LIBRARY_DIR}/lldWasm.lib"
+      $result += "      )"
+      $result += "    endif()"
+      $result += "  else()"
+      # Now write the original block
+      $result += "    list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS"
+      $result += "      `${LLD_LIBRARY_DIR}/liblldELF.a"
+      $result += "      `${LLD_LIBRARY_DIR}/liblldCommon.a"
+      $result += "    )"
+      $result += "    foreach(LIB_NAME IN LISTS WASMEDGE_LLVM_LINK_LIBS_NAME)"
+      $result += "      list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS"
+      $result += "        `${LLVM_LIBRARY_DIR}/lib${LIB_NAME}.a"
+      $result += "      )"
+      $result += "    endforeach()"
+      $result += "    if(LLVM_VERSION_MAJOR LESS_EQUAL 13)"
+      $result += "      list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS"
+      $result += "        `${LLD_LIBRARY_DIR}/liblldCore.a"
+      $result += "        `${LLD_LIBRARY_DIR}/liblldDriver.a"
+      $result += "        `${LLD_LIBRARY_DIR}/liblldReaderWriter.a"
+      $result += "        `${LLD_LIBRARY_DIR}/liblldYAML.a"
+      $result += "      )"
+      $result += "    else()"
+      $result += "      list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS"
+      $result += "        `${LLD_LIBRARY_DIR}/liblldMinGW.a"
+      $result += "        `${LLD_LIBRARY_DIR}/liblldCOFF.a"
+      $result += "        `${LLD_LIBRARY_DIR}/liblldMachO.a"
+      $result += "        `${LLD_LIBRARY_DIR}/liblldWasm.a"
+      $result += "      )"
+      $result += "    endif()"
+      $result += "  endif()"
+      # Skip original block
+      while ($i -lt $lines.Count) {
+        if ($lines[$i].Trim() -eq "endif()" -and $i -gt 0 -and $lines[$i - 1].Trim() -eq "endif()") {
+          $i++
+          break
+        }
+        $i++
+      }
+      Write-Host "  Patched LLD + LLVM library names"
+      continue
+    }
 
-# --- 2b: LLD + LLVM library names ---
-# On MSVC, use .lib names instead of .a
-$old2b = @'
-  list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS
-    ${LLD_LIBRARY_DIR}/liblldELF.a
-    ${LLD_LIBRARY_DIR}/liblldCommon.a
-  )
-  foreach(LIB_NAME IN LISTS WASMEDGE_LLVM_LINK_LIBS_NAME)
-    list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS
-      ${LLVM_LIBRARY_DIR}/lib${LIB_NAME}.a
-    )
-  endforeach()
-  if(LLVM_VERSION_MAJOR LESS_EQUAL 13)
-    # For LLVM <= 13
-    list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS
-      ${LLD_LIBRARY_DIR}/liblldCore.a
-      ${LLD_LIBRARY_DIR}/liblldDriver.a
-      ${LLD_LIBRARY_DIR}/liblldReaderWriter.a
-      ${LLD_LIBRARY_DIR}/liblldYAML.a
-    )
-  else()
-    # For LLVM 14
-    list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS
-      ${LLD_LIBRARY_DIR}/liblldMinGW.a
-      ${LLD_LIBRARY_DIR}/liblldCOFF.a
-      ${LLD_LIBRARY_DIR}/liblldMachO.a
-      ${LLD_LIBRARY_DIR}/liblldWasm.a
-    )
-  endif()
-'@
+    # --- Patch 2c: zstd library ---
+    if ($line -match 'if\(APPLE OR LLVM_VERSION_MAJOR GREATER_EQUAL 16\)') {
+      $result += "    if(APPLE OR LLVM_VERSION_MAJOR GREATER_EQUAL 16 OR MSVC)"
+      $result += "      find_package(zstd REQUIRED)"
+      $result += "      get_filename_component(ZSTD_PATH `"`${zstd_LIBRARY}`" DIRECTORY)"
+      $result += "      if(MSVC)"
+      $result += "        list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS"
+      $result += "          `${ZSTD_PATH}/zstd.lib"
+      $result += "        )"
+      $result += "      else()"
+      $result += "        list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS"
+      $result += "          `${ZSTD_PATH}/libzstd.a"
+      $result += "        )"
+      $result += "      endif()"
+      $result += "    endif()"
+      # Skip original 7 lines
+      $i += 7
+      Write-Host "  Patched zstd library"
+      continue
+    }
 
-$new2b = @'
-  if(MSVC)
-    list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS
-      ${LLD_LIBRARY_DIR}/lldELF.lib
-      ${LLD_LIBRARY_DIR}/lldCommon.lib
-    )
-    foreach(LIB_NAME IN LISTS WASMEDGE_LLVM_LINK_LIBS_NAME)
-      list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS
-        ${LLVM_LIBRARY_DIR}/${LIB_NAME}.lib
-      )
-    endforeach()
-    if(LLVM_VERSION_MAJOR LESS_EQUAL 13)
-      list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS
-        ${LLD_LIBRARY_DIR}/lldCore.lib
-        ${LLD_LIBRARY_DIR}/lldDriver.lib
-        ${LLD_LIBRARY_DIR}/lldReaderWriter.lib
-        ${LLD_LIBRARY_DIR}/lldYAML.lib
-      )
-    else()
-      list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS
-        ${LLD_LIBRARY_DIR}/lldMinGW.lib
-        ${LLD_LIBRARY_DIR}/lldCOFF.lib
-        ${LLD_LIBRARY_DIR}/lldMachO.lib
-        ${LLD_LIBRARY_DIR}/lldWasm.lib
-      )
-    endif()
-  else()
-    list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS
-      ${LLD_LIBRARY_DIR}/liblldELF.a
-      ${LLD_LIBRARY_DIR}/liblldCommon.a
-    )
-    foreach(LIB_NAME IN LISTS WASMEDGE_LLVM_LINK_LIBS_NAME)
-      list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS
-        ${LLVM_LIBRARY_DIR}/lib${LIB_NAME}.a
-      )
-    endforeach()
-    if(LLVM_VERSION_MAJOR LESS_EQUAL 13)
-      list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS
-        ${LLD_LIBRARY_DIR}/liblldCore.a
-        ${LLD_LIBRARY_DIR}/liblldDriver.a
-        ${LLD_LIBRARY_DIR}/liblldReaderWriter.a
-        ${LLD_LIBRARY_DIR}/liblldYAML.a
-      )
-    else()
-      list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS
-        ${LLD_LIBRARY_DIR}/liblldMinGW.a
-        ${LLD_LIBRARY_DIR}/liblldCOFF.a
-        ${LLD_LIBRARY_DIR}/liblldMachO.a
-        ${LLD_LIBRARY_DIR}/liblldWasm.a
-      )
-    endif()
-  endif()
-'@
-
-$h = $h.Replace($old2b, $new2b)
-Write-Host "Patched 2b: LLD + LLVM library names"
-
-# --- 2c: zstd library ---
-# On MSVC, use zstd.lib from find_package path
-$old2c = @'
-    if(APPLE OR LLVM_VERSION_MAJOR GREATER_EQUAL 16)
-      find_package(zstd REQUIRED)
-      get_filename_component(ZSTD_PATH "${zstd_LIBRARY}" DIRECTORY)
-      list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS
-        ${ZSTD_PATH}/libzstd.a
-      )
-    endif()
-'@
-
-$new2c = @'
-    if(APPLE OR LLVM_VERSION_MAJOR GREATER_EQUAL 16 OR MSVC)
-      find_package(zstd REQUIRED)
-      get_filename_component(ZSTD_PATH "${zstd_LIBRARY}" DIRECTORY)
-      if(MSVC)
-        list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS
-          ${ZSTD_PATH}/zstd.lib
-        )
-      else()
-        list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS
-          ${ZSTD_PATH}/libzstd.a
-        )
-      endif()
-    endif()
-'@
-
-$h = $h.Replace($old2c, $new2c)
-Write-Host "Patched 2c: zstd library"
-
-Set-Content $file2 $h -NoNewline
-Write-Host "Wrote $file2"
+    $result += $line
+    $i++
+  }
+  return $result
+}
 
 Write-Host "=== All MSVC patches applied successfully ==="

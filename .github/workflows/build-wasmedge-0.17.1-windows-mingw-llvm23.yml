@@ -1,0 +1,128 @@
+name: Build WasmEdge 0.17.1 Windows MinGW llvm-mingw 23.1.0
+
+on:
+  workflow_dispatch:
+    inputs:
+      llvm_release_tag:
+        description: "LLVM prebuilt release tag"
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      llvm_release_tag:
+        description: "LLVM prebuilt release tag"
+        required: true
+        type: string
+    outputs:
+      release_tag:
+        description: "Release tag for the built artifacts"
+        value: ${{ jobs.build.outputs.release_tag }}
+
+permissions:
+  contents: write
+
+env:
+  WasmEdge_VERSION: "0.17.1"
+  TARGET_TRIPLE: x86_64-w64-windows-gnu
+  COMPILER: mingw
+  COMPILER_VERSION: "23.1.0"
+  STDLIB: libcxx
+  LLD: lld
+
+jobs:
+  build:
+    name: Build WasmEdge 0.17.1 (Windows x86_64 MinGW llvm-mingw 23.1.0)
+    runs-on: ubuntu-latest
+    container: mstorsjo/llvm-mingw:20260826
+    outputs:
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends \
+            cmake ninja-build python3 git wget ca-certificates
+
+      - name: MinGW toolchain file
+        run: |
+          cat > /tmp/mingw-toolchain.cmake <<'EOF'
+          set(CMAKE_SYSTEM_NAME Windows)
+          set(CMAKE_SYSTEM_PROCESSOR x86_64)
+          set(CMAKE_C_COMPILER x86_64-w64-mingw32-clang)
+          set(CMAKE_CXX_COMPILER x86_64-w64-mingw32-clang++)
+          set(CMAKE_AR x86_64-w64-mingw32-llvm-ar)
+          set(CMAKE_RANLIB x86_64-w64-mingw32-llvm-ranlib)
+          set(CMAKE_SYSROOT /opt/llvm-mingw/x86_64-w64-mingw32)
+          set(CMAKE_FIND_ROOT_PATH /opt/llvm-mingw/x86_64-w64-mingw32)
+          set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+          set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+          set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+          set(CMAKE_EXE_LINKER_FLAGS_INIT "-fuse-ld=lld")
+          EOF
+
+      - name: Download prebuilt LLVM
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p /deps/llvm
+          gh release download "${{ inputs.llvm_release_tag }}" \
+            --repo ${{ github.repository_owner }}/prebuilt \
+            --pattern '*.tar.gz' \
+            --dir /tmp
+          tar -xzf /tmp/llvm-*.tar.gz -C /deps/llvm
+          rm /tmp/llvm-*.tar.gz
+
+      - name: Compute release tag
+        id: meta
+        run: |
+          TAG="wasmedge-${{ env.WasmEdge_VERSION }}-${{ env.TARGET_TRIPLE }}-${{ env.COMPILER }}-${{ env.COMPILER_VERSION }}-${{ env.STDLIB }}-${{ env.LLD }}"
+          echo "release_tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Build WasmEdge
+        run: |
+          git clone --depth 1 --branch ${{ env.WasmEdge_VERSION }} https://github.com/WasmEdge/WasmEdge.git /tmp/wasmedge
+          LLVM_DIR=$(find /deps/llvm -name "LLVMConfig.cmake" -exec dirname {} \; | head -1)
+          echo "LLVM_DIR=$LLVM_DIR"
+          cmake -S /tmp/wasmedge -B /tmp/wasmedge/build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=/tmp/mingw-toolchain.cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/tmp/wasmedge-install \
+            -DCMAKE_PREFIX_PATH=/deps/llvm \
+            -DLLVM_DIR="$LLVM_DIR" \
+            -DWASMEDGE_BUILD_STATIC_LIB=ON \
+            -DWASMEDGE_BUILD_SHARED_LIB=OFF \
+            -DWASMEDGE_LINK_LLVM_STATIC=ON \
+            -DWASMEDGE_BUILD_TOOLS=OFF \
+            -DWASMEDGE_BUILD_TESTS=OFF
+          cmake --build /tmp/wasmedge/build
+          cmake --install /tmp/wasmedge/build
+          rm -rf /tmp/wasmedge
+
+      - name: Package
+        run: |
+          cd /tmp/wasmedge-install
+          tar -czf /tmp/wasmedge-${{ env.WasmEdge_VERSION }}-${{ env.TARGET_TRIPLE }}-${{ env.COMPILER }}-${{ env.COMPILER_VERSION }}-${{ env.STDLIB }}-${{ env.LLD }}.tar.gz .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasmedge-windows-mingw
+          path: /tmp/wasmedge-*.tar.gz
+
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: wasmedge-windows-mingw
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build.outputs.release_tag }}
+          name: "WasmEdge ${{ env.WasmEdge_VERSION }} (${{ env.TARGET_TRIPLE }}, ${{ env.COMPILER }} ${{ env.COMPILER_VERSION }}, ${{ env.STDLIB }})"
+          files: wasmedge-*.tar.gz
+          draft: false
+          prerelease: false
